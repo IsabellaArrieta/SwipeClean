@@ -1,0 +1,14 @@
+R_DEF: Internal format may change without notice
+local
+color ic_launcher_background
+drawable ic_launcher_foreground
+font nunito_bold
+font nunito_medium
+font nunito_regular
+font outfit_bold
+font outfit_medium
+font outfit_regular
+mipmap ic_launcher
+mipmap ic_launcher_round
+string app_name
+style Theme.SwipeClean
