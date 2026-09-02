@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import Slider from '@react-native-community/slider';
+import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
+
+import { cachedPoster, getPoster } from '@/lib/videoThumb';
 
 // Player de video con slider y toggle de sonido. Portado de ui/components/VideoPlayerCard.kt.
 export function VideoCard({ uri }: { uri: string }) {
@@ -18,12 +21,19 @@ export function VideoCard({ uri }: { uri: string }) {
   const [pos, setPos] = useState(0);
   const [dur, setDur] = useState(0);
   const [buffering, setBuffering] = useState(true);
+  const [started, setStarted] = useState(false);
+  const [poster, setPoster] = useState<string | null>(() => cachedPoster(uri) ?? null);
   const scrubbing = useRef(false);
+
+  useEffect(() => {
+    if (cachedPoster(uri) === undefined) getPoster(uri).then(setPoster);
+  }, [uri]);
 
   useEffect(() => {
     const id = setInterval(() => {
       try {
         setBuffering(player.status === 'loading');
+        if (player.status === 'readyToPlay' && (player.currentTime || 0) > 0.05) setStarted(true);
         if (scrubbing.current) return;
         setDur(player.duration || 0);
         setPos(player.currentTime || 0);
@@ -47,7 +57,11 @@ export function VideoCard({ uri }: { uri: string }) {
     <View style={styles.fill}>
       <VideoView player={player} style={styles.fill} contentFit="contain" nativeControls={false} />
 
-      {buffering ? (
+      {!started && poster && (
+        <Image source={{ uri: poster }} style={styles.poster} contentFit="contain" transition={0} />
+      )}
+
+      {buffering && !started ? (
         <View style={styles.playBtn}>
           <ActivityIndicator color="#fff" />
         </View>
@@ -93,6 +107,7 @@ function fmt(s: number) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, width: '100%' },
+  poster: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   playBtn: {
     position: 'absolute',
     alignSelf: 'center',

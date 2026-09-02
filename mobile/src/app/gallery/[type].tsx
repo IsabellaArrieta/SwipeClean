@@ -24,7 +24,6 @@ import { Semantic } from '@/theme/tokens';
 const COLS = 3;
 const FIRST_PAGE = 120;
 const NEXT_PAGE = 120;
-const VIEWABILITY = { itemVisiblePercentThreshold: 10 };
 
 export default function Gallery() {
   const params = useLocalSearchParams<{ type: MediaKind }>();
@@ -50,10 +49,13 @@ export default function Gallery() {
   const loadingMore = useRef(false);
   const trashedRef = useRef<Set<string>>(new Set());
 
-  const onViewable = useRef(({ viewableItems }: { viewableItems: { index: number | null }[] }) => {
-    const i = viewableItems[0]?.index;
-    if (i != null) setFirstVisible(Math.max(0, i));
-  }).current;
+  const onScroll = useCallback(
+    (e: { nativeEvent: { contentOffset: { y: number } } }) => {
+      const row = Math.floor(Math.max(0, e.nativeEvent.contentOffset.y - 4) / rowH);
+      setFirstVisible(row * COLS);
+    },
+    [rowH],
+  );
 
   const loadNext = useCallback(async () => {
     if (loadingMore.current || !hasMore.current) return;
@@ -218,8 +220,8 @@ export default function Gallery() {
             keyExtractor={(m) => m.id}
             numColumns={COLS}
             contentContainerStyle={{ padding: 4 }}
-            onViewableItemsChanged={onViewable}
-            viewabilityConfig={VIEWABILITY}
+            onScroll={onScroll}
+            scrollEventThrottle={32}
             onEndReached={loadNext}
             onEndReachedThreshold={1.5}
             drawDistance={rowH * 8}

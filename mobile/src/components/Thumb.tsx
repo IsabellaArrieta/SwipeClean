@@ -1,14 +1,11 @@
-import { memo, useReducer } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import * as VideoThumbnails from 'expo-video-thumbnails';
 
 import { Semantic, radius } from '@/theme/tokens';
 import type { MediaKind } from '@/lib/media';
-
-// Miniaturas de video ya generadas (fallback si expo-image no saca el frame).
-const videoThumbCache = new Map<string, string>();
+import { cachedPoster, getPoster } from '@/lib/videoThumb';
 
 function Thumb({
   uri,
@@ -23,35 +20,47 @@ function Thumb({
   selected: boolean;
   onPress: () => void;
 }) {
-  const [, force] = useReducer((x: number) => x + 1, 0);
+  const [thumb, setThumb] = useState<string | null>(() =>
+    kind === 'video' ? (cachedPoster(uri) ?? null) : uri,
+  );
 
-  // Derivado de props + caché => seguro cuando FlashList recicla la celda.
-  const src = kind === 'video' ? (videoThumbCache.get(uri) ?? uri) : uri;
-
-  const onError = () => {
-    if (kind !== 'video' || uri.startsWith('http') || videoThumbCache.has(uri)) return;
-    VideoThumbnails.getThumbnailAsync(uri, { time: 800, quality: 0.3 })
-      .then((r) => {
-        videoThumbCache.set(uri, r.uri);
-        force();
-      })
-      .catch(() => {});
-  };
+  useEffect(() => {
+    if (kind !== 'video') {
+      setThumb(uri);
+      return;
+    }
+    const cached = cachedPoster(uri);
+    if (cached !== undefined) {
+      setThumb(cached);
+      return;
+    }
+    let alive = true;
+    setThumb(null);
+    getPoster(uri).then((t) => alive && setThumb(t));
+    return () => {
+      alive = false;
+    };
+  }, [uri, kind]);
 
   return (
     <Pressable style={[styles.cell, { width: size, height: size }]} onPress={onPress}>
       <View style={styles.inner}>
-        <Image
-          source={{ uri: src }}
-          style={styles.img}
-          contentFit="cover"
-          cachePolicy="memory-disk"
-          priority="low"
-          transition={120}
-          recyclingKey={uri}
-          onError={onError}
-        />
-        {kind === 'video' && (
+        {thumb ? (
+          <Image
+            source={{ uri: thumb }}
+            style={styles.img}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            priority="low"
+            transition={120}
+            recyclingKey={uri}
+          />
+        ) : (
+          <View style={styles.placeholder}>
+            {kind === 'video' && <Ionicons name="videocam" size={22} color="rgba(99,102,241,0.4)" />}
+          </View>
+        )}
+        {kind === 'video' && thumb && (
           <View style={styles.playBadge}>
             <Ionicons name="play" size={12} color="#fff" />
           </View>
@@ -81,6 +90,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(99,102,241,0.08)',
   },
   img: { flex: 1 },
+  placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   playBadge: {
     position: 'absolute',
     left: 6,

@@ -12,6 +12,8 @@ import { VideoCard } from '@/components/VideoCard';
 import { useTheme } from '@/theme/ThemeContext';
 import { Indigo, Semantic, radius } from '@/theme/tokens';
 import { ensurePermission, isDemoMode, requestOrOpenSettings, type MediaKind } from '@/lib/media';
+import { getPoster } from '@/lib/videoThumb';
+import { VideoPoster } from '@/components/VideoPoster';
 import { useSwipeStore } from '@/store/useSwipeStore';
 
 export default function SwipeScreen() {
@@ -52,11 +54,17 @@ export default function SwipeScreen() {
 
   const onBack = useCallback(() => router.back(), [router]);
 
-  // Precarga las próximas fotos para que aparezcan al instante al deslizar.
+  // Precarga lo que sigue para que aparezca al instante al deslizar.
   useEffect(() => {
-    if (kind !== 'photo') return;
-    const next = queue.slice(index + 1, index + 4).map((m) => m.uri);
-    if (next.length) Image.prefetch(next, { cachePolicy: 'memory-disk' });
+    const upcoming = queue.slice(index + 1, index + 4);
+    if (kind === 'photo') {
+      Image.prefetch(
+        upcoming.map((m) => m.uri),
+        { cachePolicy: 'memory-disk' },
+      );
+    } else {
+      upcoming.forEach((m) => getPoster(m.uri));
+    }
   }, [queue, index, kind]);
 
   const waitingMore = index >= queue.length && (hasMore || loadingMore);
@@ -131,7 +139,13 @@ export default function SwipeScreen() {
             <SwipeCard
               frontKey={current.id}
               front={renderMedia(current.uri)}
-              back={next && kind === 'photo' ? renderMedia(next.uri) : null}
+              back={
+                next
+                  ? kind === 'photo'
+                    ? renderMedia(next.uri)
+                    : <VideoPoster uri={next.uri} />
+                  : null
+              }
               onSwipeRight={swipeRight}
               onSwipeLeft={swipeLeft}
             />
