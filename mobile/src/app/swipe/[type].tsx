@@ -67,7 +67,7 @@ export default function SwipeScreen() {
 
   const renderMedia = (uri: string) =>
     kind === 'video' ? (
-      <VideoCard uri={uri} />
+      <VideoCard key={uri} uri={uri} />
     ) : (
       <Image
         source={{ uri }}

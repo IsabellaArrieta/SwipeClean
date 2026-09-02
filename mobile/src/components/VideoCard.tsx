@@ -22,10 +22,14 @@ export function VideoCard({ uri }: { uri: string }) {
 
   useEffect(() => {
     const id = setInterval(() => {
-      setBuffering(player.status === 'loading');
-      if (scrubbing.current) return;
-      setDur(player.duration || 0);
-      setPos(player.currentTime || 0);
+      try {
+        setBuffering(player.status === 'loading');
+        if (scrubbing.current) return;
+        setDur(player.duration || 0);
+        setPos(player.currentTime || 0);
+      } catch {
+        // el player ya se liberó (cambio de video / salida de pantalla)
+      }
     }, 250);
     return () => clearInterval(id);
   }, [player]);
