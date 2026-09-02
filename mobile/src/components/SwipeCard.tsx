@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, type ReactNode } from 'react';
 import { StyleSheet, Text, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -23,9 +23,15 @@ type Props = {
   onSwipeLeft: () => void;
 };
 
+// Permite disparar el swipe desde fuera (los botones de abajo).
+export type SwipeCardHandle = { swipe: (dir: 1 | -1) => void };
+
 // Card arrastrable estilo Tinder con la siguiente carta detrás (no se desmonta
 // al avanzar, así no hay parpadeo). Portado de ui/components/SwipeCard.kt.
-export function SwipeCard({ frontKey, front, back, onSwipeRight, onSwipeLeft }: Props) {
+export const SwipeCard = forwardRef<SwipeCardHandle, Props>(function SwipeCard(
+  { frontKey, front, back, onSwipeRight, onSwipeLeft },
+  ref,
+) {
   const { width } = useWindowDimensions();
   const x = useSharedValue(0);
   const y = useSharedValue(0);
@@ -44,6 +50,22 @@ export function SwipeCard({ frontKey, front, back, onSwipeRight, onSwipeLeft }: 
     });
     y.value = withTiming(y.value + 40, { duration: 200 });
   };
+
+  // Misma animación que el gesto, pero lanzada desde los botones.
+  useImperativeHandle(
+    ref,
+    () => ({
+      swipe: (dir: 1 | -1) => {
+        const cb = dir === 1 ? onSwipeRight : onSwipeLeft;
+        x.value = withTiming(dir * width * 1.5, { duration: 260 }, (done) => {
+          'worklet';
+          if (done) runOnJS(cb)();
+        });
+        y.value = withTiming(y.value + 40, { duration: 260 });
+      },
+    }),
+    [width, onSwipeRight, onSwipeLeft],
+  );
 
   const pan = Gesture.Pan()
     .onUpdate((e) => {
@@ -102,7 +124,7 @@ export function SwipeCard({ frontKey, front, back, onSwipeRight, onSwipeLeft }: 
       </GestureDetector>
     </Animated.View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   stack: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,7 +7,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { CircleIconButton, PillButton } from '@/components/ui';
-import { SwipeCard } from '@/components/SwipeCard';
+import { SwipeCard, type SwipeCardHandle } from '@/components/SwipeCard';
 import { VideoCard } from '@/components/VideoCard';
 import { useTheme } from '@/theme/ThemeContext';
 import { Indigo, Semantic, radius } from '@/theme/tokens';
@@ -24,6 +24,7 @@ export default function SwipeScreen() {
   const { colors } = useTheme();
 
   const [ready, setReady] = useState(false);
+  const cardRef = useRef<SwipeCardHandle>(null);
   const {
     loading,
     queue,
@@ -137,6 +138,7 @@ export default function SwipeScreen() {
             </Text>
           ) : (
             <SwipeCard
+              ref={cardRef}
               frontKey={current.id}
               front={renderMedia(current.uri)}
               back={
@@ -154,8 +156,18 @@ export default function SwipeScreen() {
 
         {!loading && !done && !waitingMore && (
           <View style={styles.actions}>
-            <PillButton label="✕  A papelera" variant="danger" onPress={swipeLeft} style={styles.actionBtn} />
-            <PillButton label="✓  Se queda" variant="primary" onPress={swipeRight} style={styles.actionBtn} />
+            <PillButton
+              label="✕  A papelera"
+              variant="danger"
+              onPress={() => cardRef.current?.swipe(-1)}
+              style={styles.actionBtn}
+            />
+            <PillButton
+              label="✓  Se queda"
+              variant="primary"
+              onPress={() => cardRef.current?.swipe(1)}
+              style={styles.actionBtn}
+            />
           </View>
         )}
       </SafeAreaView>
