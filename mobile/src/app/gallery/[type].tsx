@@ -177,10 +177,15 @@ export default function Gallery() {
     setSelected(new Set());
   };
 
-  const onJump = () => {
+  // Volvemos a la pantalla de swipe que ya está en la pila (en vez de apilar
+  // otra), y le pasamos la posición exacta del elemento elegido.
+  const onJump = async () => {
     const id = [...selected][0];
-    const m = items.find((x) => x.id === id);
-    if (m) router.replace(`/swipe/${kind}?jump=${encodeURIComponent(m.id)}&t=${m.timeMs}`);
+    const i = items.findIndex((x) => x.id === id);
+    if (i < 0) return;
+    await useSwipeStore.getState().load(kind, { id, time: items[i].timeMs, index: i });
+    if (router.canGoBack()) router.back();
+    else router.replace(`/swipe/${kind}`);
   };
 
   // "Empezar de nuevo": reinicia la revisión de ESTE tipo (fotos o videos, sin
@@ -192,16 +197,17 @@ export default function Gallery() {
     else router.replace(`/swipe/${kind}`);
   };
 
-  const progress = total > 1 ? Math.min(1, firstVisible / (total - 1)) : 0;
+  // La barra se mide contra lo que YA está cargado, no contra el total: con
+  // scroll infinito, anclarla al total la dejaba casi inmóvil arriba.
+  const loadedMax = Math.max(1, items.length - 1);
+  const progress = Math.min(1, firstVisible / loadedMax);
   const seek = (f: number) => {
-    const max = items.length - 1;
-    if (max < 0) return;
-    const wanted = Math.round(Math.min(1, Math.max(0, f)) * Math.max(0, total - 1));
-    const target = Math.min(max, Math.max(0, wanted));
+    if (items.length === 0) return;
+    const target = Math.round(Math.min(1, Math.max(0, f)) * loadedMax);
     try {
       listRef.current?.scrollToIndex({ index: target, animated: false });
     } catch {}
-    if (wanted > max - 30) loadNext(); // pidiendo cerca del final -> traer más
+    if (target > loadedMax - 30) loadNext(); // cerca del final -> traer más
   };
 
   return (
@@ -272,8 +278,8 @@ export default function Gallery() {
           />
           <FastScrollbar
             progress={progress}
-            label={`${Math.min(total, firstVisible + 1)}`}
-            count={total}
+            label={`${Math.min(total, firstVisible + 1)} / ${total}`}
+            count={items.length}
             onSeek={seek}
           />
         </View>

@@ -15,8 +15,8 @@ export function FastScrollbar({
   onSeek,
 }: {
   progress: number; // 0..1 posición actual
-  label: string; // texto de la burbuja (ej. "45")
-  count: number;
+  label: string; // texto completo de la burbuja (ej. "45 / 320")
+  count: number; // elementos cargados: por debajo de minCount no mostramos barra
   minCount?: number;
   onSeek: (fraction: number) => void; // 0..1
 }) {
@@ -49,9 +49,7 @@ export function FastScrollbar({
         />
         {dragging && (
           <View style={[styles.bubble, { top: Math.max(0, top - 6) }]}>
-            <Text style={styles.bubbleText}>
-              {label}/{count}
-            </Text>
+            <Text style={styles.bubbleText}>{label}</Text>
           </View>
         )}
       </View>

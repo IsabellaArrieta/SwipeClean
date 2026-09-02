@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import { countBefore, getTotalCount, queryMediaPage, type Media, type MediaKind } from '@/lib/media';
+import { getTotalCount, queryMediaPage, type Media, type MediaKind } from '@/lib/media';
 import { trashIds, trashInsert, trashRemove } from '@/lib/db';
 import { getCheckpoint, saveCheckpoint } from '@/lib/storage';
 
@@ -21,7 +21,9 @@ type SwipeState = {
   hasMore: boolean;
   loadingMore: boolean;
   trashed: Set<string>;
-  load: (kind: MediaKind, jumpToId?: string | null, jumpTimeMs?: number | null) => Promise<void>;
+  // `jump` viene de "Saltar aquí": la galería ya sabe la posición exacta del
+  // elemento, así que la pasa y no hay que deducirla de las fechas.
+  load: (kind: MediaKind, jump?: { id: string; time: number; index: number }) => Promise<void>;
   loadMore: () => Promise<void>;
   swipeRight: () => void;
   swipeLeft: () => void;
@@ -40,7 +42,7 @@ export const useSwipeStore = create<SwipeState>((set, get) => ({
   loadingMore: false,
   trashed: new Set(),
 
-  load: async (kind, jumpToId, jumpTimeMs) => {
+  load: async (kind, jump) => {
     // El store es compartido entre Fotos y Videos: limpiamos los contadores para
     // no seguir mostrando los del tipo anterior mientras carga el nuevo.
     set({ loading: true, queue: [], index: 0, history: [], kind, total: 0, reviewed: 0 });
@@ -51,10 +53,9 @@ export const useSwipeStore = create<SwipeState>((set, get) => ({
     let before: number | undefined;
     let reviewed = 0;
 
-    if (jumpTimeMs) {
-      // Saltaste a un punto de la galería: ahí sí calculamos la posición.
-      before = jumpTimeMs + 1;
-      reviewed = Math.max(0, total - (await countBefore(kind, before)));
+    if (jump) {
+      before = jump.time + 1; // incluye el elemento al que saltaste
+      reviewed = jump.index; // posición exacta que ya conocía la galería
     } else {
       const cp = await getCheckpoint(kind);
       if (cp) {
@@ -65,8 +66,8 @@ export const useSwipeStore = create<SwipeState>((set, get) => ({
 
     const page = await queryMediaPage(kind, { before, first: PAGE });
     let queue = page.items.filter((m) => !trashed.has(m.id));
-    if (jumpToId) {
-      const i = queue.findIndex((m) => m.id === jumpToId);
+    if (jump) {
+      const i = queue.findIndex((m) => m.id === jump.id);
       if (i > 0) queue = queue.slice(i);
     }
 

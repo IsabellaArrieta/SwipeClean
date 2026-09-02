@@ -17,7 +17,7 @@ import { VideoPoster } from '@/components/VideoPoster';
 import { useSwipeStore } from '@/store/useSwipeStore';
 
 export default function SwipeScreen() {
-  const params = useLocalSearchParams<{ type: MediaKind; jump?: string; t?: string }>();
+  const params = useLocalSearchParams<{ type: MediaKind }>();
   const kind: MediaKind = params.type === 'video' ? 'video' : 'photo';
   const label = kind === 'photo' ? 'Fotos' : 'Videos';
   const router = useRouter();
@@ -40,10 +40,7 @@ export default function SwipeScreen() {
     undo,
   } = useSwipeStore();
 
-  const reload = useCallback(
-    () => load(kind, params.jump ?? null, params.t ? Number(params.t) : null),
-    [load, kind, params.jump, params.t],
-  );
+  const reload = useCallback(() => load(kind), [load, kind]);
 
   useEffect(() => {
     ensurePermission().finally(() => setReady(true));
