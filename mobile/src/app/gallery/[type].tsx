@@ -220,6 +220,7 @@ export default function Gallery() {
               <Thumb
                 uri={item.uri}
                 kind={item.kind}
+                size={rowH}
                 selected={selected.has(item.id)}
                 onPress={() => toggle(item.id)}
               />

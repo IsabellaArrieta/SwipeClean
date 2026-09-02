@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { Alert, FlatList, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 
@@ -13,6 +13,8 @@ const COLS = 3;
 export default function Trash() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const cell = (width - 8) / COLS;
   const {
     items,
     selected,
@@ -60,6 +62,7 @@ export default function Trash() {
               <Thumb
                 uri={item.uri}
                 kind={item.kind}
+                size={cell}
                 selected={selected.has(item.id)}
                 onPress={() => toggle(item.id)}
               />
