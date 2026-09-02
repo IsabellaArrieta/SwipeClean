@@ -28,7 +28,16 @@ export function VideoPoster({ uri }: { uri: string }) {
   return (
     <View style={styles.fill}>
       {poster ? (
-        <Image source={{ uri: poster }} style={styles.fill} contentFit="cover" transition={0} />
+        <>
+          <Image
+            source={{ uri: poster }}
+            style={styles.blurBg}
+            contentFit="cover"
+            blurRadius={40}
+            transition={0}
+          />
+          <Image source={{ uri: poster }} style={styles.fill} contentFit="contain" transition={0} />
+        </>
       ) : (
         <View style={styles.center}>
           <Ionicons name="videocam" size={40} color="rgba(99,102,241,0.35)" />
@@ -40,5 +49,6 @@ export function VideoPoster({ uri }: { uri: string }) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, width: '100%' },
+  blurBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

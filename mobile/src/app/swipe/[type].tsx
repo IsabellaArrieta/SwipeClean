@@ -74,17 +74,29 @@ export default function SwipeScreen() {
   const next = queue[index + 1];
   const progress = total === 0 ? 0 : reviewed / total;
 
+  // La foto se ve completa (sin recortar) sobre un fondo desenfocado de sí
+  // misma, así una horizontal no queda cortada ni deja bandas vacías.
   const renderMedia = (uri: string) =>
     kind === 'video' ? (
       <VideoCard uri={uri} />
     ) : (
-      <Image
-        source={{ uri }}
-        style={styles.media}
-        contentFit="cover"
-        cachePolicy="memory-disk"
-        transition={0}
-      />
+      <View style={styles.media}>
+        <Image
+          source={{ uri }}
+          style={styles.blurBg}
+          contentFit="cover"
+          blurRadius={40}
+          cachePolicy="memory-disk"
+          transition={0}
+        />
+        <Image
+          source={{ uri }}
+          style={styles.media}
+          contentFit="contain"
+          cachePolicy="memory-disk"
+          transition={0}
+        />
+      </View>
     );
 
   return (
@@ -197,6 +209,7 @@ const styles = StyleSheet.create({
   fill: { height: 4, borderRadius: radius.pill },
   cardArea: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 16 },
   media: { flex: 1, width: '100%' },
+  blurBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   actions: { flexDirection: 'row', gap: 14, paddingHorizontal: 24, paddingBottom: 16 },
   actionBtn: { flex: 1, height: 52, borderRadius: radius.xl },
 });

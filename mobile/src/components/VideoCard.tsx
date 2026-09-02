@@ -88,10 +88,22 @@ export function VideoCard({ uri }: { uri: string }) {
 
   return (
     <View style={styles.fill}>
-      <VideoView player={player} style={styles.fill} contentFit="cover" nativeControls={false} />
+      {/* Fondo desenfocado para que un video horizontal no quede recortado
+          ni deje bandas negras. */}
+      {poster && (
+        <Image
+          source={{ uri: poster }}
+          style={styles.poster}
+          contentFit="cover"
+          blurRadius={40}
+          transition={0}
+        />
+      )}
+
+      <VideoView player={player} style={styles.fill} contentFit="contain" nativeControls={false} />
 
       {!started && poster && (
-        <Image source={{ uri: poster }} style={styles.poster} contentFit="cover" transition={0} />
+        <Image source={{ uri: poster }} style={styles.poster} contentFit="contain" transition={0} />
       )}
 
       {buffering && !started ? (
