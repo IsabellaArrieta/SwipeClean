@@ -61,10 +61,21 @@ export default function Gallery() {
   const anchorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   itemsRef.current = items;
 
+  // Posición medida contra el alto real del contenido (no contra una altura de
+  // fila estimada): así la barra no se desfasa de la del sistema tras miles de filas.
   const onScroll = useCallback(
-    (e: { nativeEvent: { contentOffset: { y: number } } }) => {
-      const row = Math.floor(Math.max(0, e.nativeEvent.contentOffset.y - 4) / rowH);
-      const idx = row * COLS;
+    (e: {
+      nativeEvent: {
+        contentOffset: { y: number };
+        contentSize: { height: number };
+        layoutMeasurement: { height: number };
+      };
+    }) => {
+      const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+      const scrollable = Math.max(1, contentSize.height - layoutMeasurement.height);
+      const frac = Math.min(1, Math.max(0, contentOffset.y / scrollable));
+      const n = itemsRef.current.length;
+      const idx = n > 0 ? Math.min(n - 1, Math.round(frac * (n - 1))) : 0;
       setFirstVisible(idx);
       // guarda por qué elemento vas (con debounce), para retomar al reabrir
       if (anchorTimer.current) clearTimeout(anchorTimer.current);
@@ -270,7 +281,8 @@ export default function Gallery() {
             contentContainerStyle={{ padding: 4 }}
             initialScrollIndex={initialIndex}
             onScroll={onScroll}
-            scrollEventThrottle={32}
+            scrollEventThrottle={16}
+            showsVerticalScrollIndicator={false}
             onEndReached={loadNext}
             onEndReachedThreshold={1.5}
             drawDistance={rowH * 8}
