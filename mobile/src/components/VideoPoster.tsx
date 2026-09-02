@@ -16,7 +16,7 @@ export function VideoPoster({ uri }: { uri: string }) {
   return (
     <View style={styles.fill}>
       {poster ? (
-        <Image source={{ uri: poster }} style={styles.fill} contentFit="contain" transition={0} />
+        <Image source={{ uri: poster }} style={styles.fill} contentFit="cover" transition={0} />
       ) : (
         <View style={styles.center}>
           <Ionicons name="videocam" size={40} color="rgba(99,102,241,0.35)" />

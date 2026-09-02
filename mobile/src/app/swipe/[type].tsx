@@ -80,7 +80,7 @@ export default function SwipeScreen() {
       <Image
         source={{ uri }}
         style={styles.media}
-        contentFit="contain"
+        contentFit="cover"
         cachePolicy="memory-disk"
         transition={0}
       />
