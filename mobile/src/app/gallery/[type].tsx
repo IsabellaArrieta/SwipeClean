@@ -1,18 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { CircleIconButton, PillButton } from '@/components/ui';
-import { Thumb } from '@/components/Thumb';
+import Thumb from '@/components/Thumb';
+import { FastScrollbar } from '@/components/FastScrollbar';
 import { useTheme } from '@/theme/ThemeContext';
-import { radius } from '@/theme/tokens';
-import { queryMedia, type Media, type MediaKind } from '@/lib/media';
+import { queryMedia, isDemoMode, type Media, type MediaKind } from '@/lib/media';
 import { trashIds } from '@/lib/db';
 import { clearCheckpoint, getCheckpoint } from '@/lib/storage';
 import { useTrashStore } from '@/store/useTrashStore';
+import { Semantic } from '@/theme/tokens';
 
 const COLS = 3;
+const AList = Animated.createAnimatedComponent(FlatList<Media>);
 
 export default function Gallery() {
   const params = useLocalSearchParams<{ type: MediaKind }>();
@@ -27,6 +30,15 @@ export default function Gallery() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const listRef = useRef<FlatList<Media>>(null);
   const scrolled = useRef(false);
+
+  const scrollY = useSharedValue(0);
+  const [contentH, setContentH] = useState(0);
+  const [viewH, setViewH] = useState(0);
+  const maxScroll = Math.max(0, contentH - viewH);
+
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollY.value = e.contentOffset.y;
+  });
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -59,9 +71,7 @@ export default function Gallery() {
     });
 
   const onSendToTrash = async () => {
-    const rows = items
-      .filter((m) => selected.has(m.id))
-      .map((m) => ({ ...m, trashedAt: Date.now() }));
+    const rows = items.filter((m) => selected.has(m.id)).map((m) => ({ ...m, trashedAt: Date.now() }));
     await sendToTrash(rows);
     await reload();
   };
@@ -76,8 +86,6 @@ export default function Gallery() {
     router.dismissAll();
   };
 
-  const rows = useMemo(() => items, [items]);
-
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
@@ -90,6 +98,12 @@ export default function Gallery() {
         </Text>
       </View>
 
+      {!loading && isDemoMode() && (
+        <Text style={[styles.demo, { color: Semantic.amber }]}>
+          Modo demo — sin acceso a tu galería
+        </Text>
+      )}
+
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.primary} />
@@ -99,28 +113,43 @@ export default function Gallery() {
           <Text style={{ color: colors.onSurfaceVariant }}>No hay elementos pendientes por revisar</Text>
         </View>
       ) : (
-        <FlatList
-          ref={listRef}
-          data={rows}
-          keyExtractor={(m) => m.id}
-          numColumns={COLS}
-          contentContainerStyle={{ padding: 4 }}
-          getItemLayout={undefined}
-          onScrollToIndexFailed={() => {}}
-          renderItem={({ item }) => (
-            <Thumb uri={item.uri} selected={selected.has(item.id)} onPress={() => toggle(item.id)} />
-          )}
-        />
+        <View style={styles.flex} onLayout={(e) => setViewH(e.nativeEvent.layout.height)}>
+          <AList
+            ref={listRef as never}
+            data={items}
+            keyExtractor={(m) => m.id}
+            numColumns={COLS}
+            contentContainerStyle={{ padding: 4 }}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+            onContentSizeChange={(_w, h) => setContentH(h)}
+            onScrollToIndexFailed={() => {}}
+            removeClippedSubviews
+            initialNumToRender={24}
+            windowSize={7}
+            renderItem={({ item }) => (
+              <Thumb
+                uri={item.uri}
+                kind={item.kind}
+                selected={selected.has(item.id)}
+                onPress={() => toggle(item.id)}
+              />
+            )}
+          />
+          <FastScrollbar
+            count={items.length}
+            columns={COLS}
+            scrollY={scrollY}
+            maxScroll={maxScroll}
+            trackHeight={viewH}
+            onScrollToOffset={(offset) => listRef.current?.scrollToOffset({ offset, animated: false })}
+          />
+        </View>
       )}
 
       <View style={[styles.footer, { borderColor: colors.border }]}>
         <View style={styles.rowGap}>
-          <PillButton
-            label="Saltar aquí"
-            onPress={onJump}
-            disabled={selected.size !== 1}
-            style={styles.grow}
-          />
+          <PillButton label="Saltar aquí" onPress={onJump} disabled={selected.size !== 1} style={styles.grow} />
           <PillButton
             label="A papelera"
             icon="trash-outline"
@@ -142,6 +171,7 @@ const styles = StyleSheet.create({
   header: { height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 12 },
   title: { flex: 1, fontSize: 18, fontWeight: '600' },
   link: { fontSize: 13, fontWeight: '600' },
+  demo: { fontSize: 12, textAlign: 'center', paddingBottom: 6, fontWeight: '600' },
   footer: { borderTopWidth: 1, padding: 12, gap: 8 },
   rowGap: { flexDirection: 'row', gap: 8 },
   grow: { flex: 1 },

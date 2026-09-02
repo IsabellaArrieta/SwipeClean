@@ -7,10 +7,11 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useTheme } from '@/theme/ThemeContext';
 import { Indigo, Semantic, radius } from '@/theme/tokens';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { useTrashStore } from '@/store/useTrashStore';
 
 export default function Home() {
-  const { colors, isDark, toggle } = useTheme();
+  const { colors } = useTheme();
   const router = useRouter();
   const items = useTrashStore((s) => s.items);
   const refresh = useTrashStore((s) => s.refresh);
@@ -28,13 +29,7 @@ export default function Home() {
                 Organiza tu galería con un desliz
               </Text>
             </View>
-            <Pressable onPress={toggle} hitSlop={12}>
-              <Ionicons
-                name={isDark ? 'sunny' : 'moon'}
-                size={24}
-                color={isDark ? Semantic.amber : colors.primary}
-              />
-            </Pressable>
+            <ThemeToggle />
           </View>
 
           <View style={[styles.banner, { borderColor: Semantic.amber + '33' }]}>

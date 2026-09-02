@@ -34,6 +34,13 @@ export default function SwipeScreen() {
 
   const onBack = useCallback(() => router.back(), [router]);
 
+  // Precarga las próximas fotos para que aparezcan al instante al deslizar.
+  useEffect(() => {
+    if (kind !== 'photo') return;
+    const next = queue.slice(index + 1, index + 4).map((m) => m.uri);
+    if (next.length) Image.prefetch(next, { cachePolicy: 'memory-disk' });
+  }, [queue, index, kind]);
+
   const done = !loading && index >= queue.length;
   const current = queue[index];
   const progress = total === 0 ? 0 : reviewed / total;
@@ -85,7 +92,14 @@ export default function SwipeScreen() {
               {kind === 'video' ? (
                 <VideoCard uri={current.uri} />
               ) : (
-                <Image source={{ uri: current.uri }} style={styles.media} contentFit="contain" />
+                <Image
+                  source={{ uri: current.uri }}
+                  style={styles.media}
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
+                  transition={150}
+                  recyclingKey={current.id}
+                />
               )}
             </SwipeCard>
           )}

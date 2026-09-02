@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { CircleIconButton, PillButton } from '@/components/ui';
-import { Thumb } from '@/components/Thumb';
+import Thumb from '@/components/Thumb';
 import { useTheme } from '@/theme/ThemeContext';
 import { useTrashStore } from '@/store/useTrashStore';
 
@@ -59,6 +59,7 @@ export default function Trash() {
             renderItem={({ item }) => (
               <Thumb
                 uri={item.uri}
+                kind={item.kind}
                 selected={selected.has(item.id)}
                 onPress={() => toggle(item.id)}
               />

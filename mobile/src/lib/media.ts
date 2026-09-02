@@ -23,23 +23,16 @@ export const isDemoMode = () => _demoMode;
 
 function demoMedia(kind: MediaKind): Media[] {
   if (kind === 'photo') {
-    const ids = [10, 1003, 1015, 1025, 1039, 1043, 1057, 106, 1074, 111, 129, 133];
+    const ids = [10, 1003, 1015, 1025, 1039, 1043, 1057, 106, 1074, 111, 129, 133, 164, 175, 180];
     return ids.map((n, i) => ({
       id: `${DEMO_PREFIX}p${n}`,
-      uri: `https://picsum.photos/id/${n}/900/1400`,
+      uri: `https://picsum.photos/id/${n}/500/750`,
       kind,
       name: `foto_demo_${i + 1}.jpg`,
       dateAdded: Math.round(Date.now() / 1000) - i * 3600,
     }));
   }
-  const vids = [
-    'BigBuckBunny',
-    'ElephantsDream',
-    'ForBiggerBlazes',
-    'ForBiggerEscapes',
-    'ForBiggerFun',
-    'ForBiggerJoyrides',
-  ];
+  const vids = ['BigBuckBunny', 'ElephantsDream', 'ForBiggerBlazes', 'ForBiggerFun', 'ForBiggerJoyrides'];
   return vids.map((v, i) => ({
     id: `${DEMO_PREFIX}v${i}`,
     uri: `https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/${v}.mp4`,
