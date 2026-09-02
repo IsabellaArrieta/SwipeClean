@@ -68,7 +68,7 @@ export default function Home() {
         <View style={[styles.tabBar, { borderColor: colors.border, backgroundColor: colors.surface }]}>
           <Tab icon="home" label="Inicio" active />
           <Tab icon="bar-chart" label="Estadísticas" onPress={() => router.push('/stats')} />
-          <Tab icon="settings" label="Ajustes" onPress={() => router.push('/settings')} />
+          <Tab icon="heart" label="Info" onPress={() => router.push('/info')} />
         </View>
       </SafeAreaView>
     </LinearGradient>

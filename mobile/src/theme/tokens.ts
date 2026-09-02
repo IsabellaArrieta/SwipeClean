@@ -10,6 +10,15 @@ export const Indigo = {
   900: '#2E2A8F',
 };
 
+// Rosas para la tarjeta de créditos (paleta aparte del índigo principal).
+export const Rose = {
+  400: '#ffcdd4',
+  500: '#fdb4bf',
+  600: '#f99aaa',
+  700: '#f1889b',
+  800: '#e57d90',
+};
+
 export const Semantic = {
   success: '#10B981',
   danger: '#F43F5E',
