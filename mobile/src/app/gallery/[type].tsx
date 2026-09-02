@@ -25,6 +25,7 @@ import {
   saveGalleryAnchor,
 } from '@/lib/storage';
 import { useTrashStore } from '@/store/useTrashStore';
+import { useSwipeStore } from '@/store/useSwipeStore';
 import { Semantic } from '@/theme/tokens';
 
 const COLS = 3;
@@ -182,9 +183,13 @@ export default function Gallery() {
     if (m) router.replace(`/swipe/${kind}?jump=${encodeURIComponent(m.id)}&t=${m.timeMs}`);
   };
 
+  // "Empezar de nuevo": reinicia la revisión de ESTE tipo (fotos o videos, sin
+  // tocar el otro) y vuelve a la pantalla de swipe empezando desde el principio.
   const onReset = async () => {
     await Promise.all([clearCheckpoint(kind), clearGalleryAnchor(kind)]);
-    router.dismissAll();
+    await useSwipeStore.getState().load(kind);
+    if (router.canGoBack()) router.back();
+    else router.replace(`/swipe/${kind}`);
   };
 
   const progress = total > 1 ? Math.min(1, firstVisible / (total - 1)) : 0;
