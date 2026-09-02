@@ -1,41 +1,96 @@
 # SwipeClean
 
-App Android para limpiar tu galería estilo Tinder: swipe derecha = se queda,
-swipe izquierda = va a papelera. La papelera es un panel aparte donde
-seleccionas, restauras o borras definitivamente.
+App móvil para limpiar tu galería estilo Tinder: **desliza a la derecha para
+conservar, a la izquierda para mandar a la papelera**. Nada se borra hasta que
+tú lo confirmes desde la Papelera, con el diálogo del propio sistema.
 
-## Qué incluye este MVP
-- Swipe de fotos y swipe de videos (misma lógica, dos pantallas).
-- Contador de progreso ("Revisaste X de Y").
-- Botón de deshacer el último swipe.
-- Papelera con selección múltiple: restaurar seleccionados, restaurar todo,
-  eliminar seleccionados, vaciar papelera.
-- El borrado real usa `MediaStore.createDeleteRequest` (Android 11+), que
-  muestra una sola confirmación del sistema para todo el lote. Nada se
-  borra hasta que tú lo confirmes desde Papelera.
+Hecha con Expo + React Native, así que corre en Android y iOS con una sola base
+de código.
 
-## Cómo abrirlo
-1. Instala Android Studio (developer.android.com/studio) si no lo tienes.
-2. Abre Android Studio → "Open" → selecciona la carpeta `SwipeClean`.
-3. Deja que Android Studio sincronice Gradle (puede tardar unos minutos la
-   primera vez y te puede pedir generar el wrapper de Gradle; acepta).
-4. Conecta un celular Android (modo desarrollador + depuración USB) o crea
-   un emulador desde el Device Manager.
-5. Dale ▶ Run.
+## Qué hace
+
+- **Revisión con swipe** de fotos y videos, con la tarjeta que rota y sale
+  volando, y el fondo cambiando de color según el lado.
+- **Retoma donde quedaste**: recuerda el último elemento revisado de cada tipo,
+  incluso si cierras la app o te llegan fotos nuevas por WhatsApp.
+- **Papelera** con selección múltiple: restaurar, eliminar seleccionados o
+  vaciar. El borrado real usa el diálogo de confirmación del sistema.
+- **Galería en cuadrícula** con scroll infinito, barra de desplazamiento rápida
+  con contador, y miniaturas de video cacheadas en disco.
+- **Deshacer** el último swipe.
+- **Tema claro/oscuro** con transición animada, guardado entre sesiones.
+- Fotos y videos horizontales se ven completos sobre un fondo desenfocado de sí
+  mismos, sin recortes ni bandas negras.
+
+## Stack
+
+| Pieza | Librería |
+|---|---|
+| Navegación | `expo-router` (rutas por archivos) |
+| Galería y borrado real | `expo-media-library` |
+| Papelera (soft-delete) | `expo-sqlite` |
+| Checkpoint y preferencias | `AsyncStorage` |
+| Estado | `zustand` |
+| Gestos y animaciones | `react-native-reanimated` + `react-native-gesture-handler` |
+| Listas grandes | `@shopify/flash-list` |
+| Imágenes | `expo-image` |
+| Video | `expo-video` + `expo-video-thumbnails` |
+
+## Estructura
+
+```
+mobile/
+  src/
+    app/                    Pantallas (expo-router)
+      _layout.tsx           Stack raíz, tema, gestos
+      index.tsx             Inicio
+      swipe/[type].tsx      Revisión (type = photo | video)
+      gallery/[type].tsx    Galería en cuadrícula
+      trash.tsx             Papelera
+      stats.tsx  info.tsx   Estadísticas y créditos
+    components/             SwipeCard, VideoCard, Thumb, FastScrollbar, ui…
+    lib/                    media, db (sqlite), storage, videoThumb
+    store/                  useSwipeStore, useTrashStore
+    theme/                  Paleta y contexto de tema
+  scripts/gen-icons.mjs     Genera los íconos de la app
+```
+
+## Correr el proyecto
+
+Necesitas Node y una **development build** instalada en el teléfono (la app
+lleva librerías nativas, así que Expo Go no sirve).
+
+```bash
+cd mobile
+npx expo start --dev-client
+```
+
+Abre la app en el teléfono y conéctala al QR. A partir de ahí, cada cambio en el
+código recarga solo.
+
+### Compilar el APK
+
+Solo hace falta al agregar una librería nativa o al tocar `app.json`:
+
+```bash
+npx eas-cli build -p android --profile development   # para desarrollar
+npx eas-cli build -p android --profile preview       # APK instalable
+```
 
 ## Requisitos
-- Android 10 (API 29) o superior en el dispositivo/emulador.
-- La primera vez que abras Fotos o Videos, la app te pedirá permiso de
-  acceso a tus medios.
 
-## Estructura del proyecto
-- `data/` — acceso a MediaStore (fotos/videos reales) y base de datos local
-  Room que guarda qué quedó marcado para papelera.
-- `viewmodel/` — lógica de swipe/deshacer y lógica de papelera/borrado.
-- `ui/screens/` — Home, Swipe (fotos y videos), Papelera.
-- `ui/components/SwipeCard.kt` — el gesto de arrastre tipo Tinder.
+- Android 10 (API 29) o superior.
+- Permiso de acceso a fotos y videos: la app lo pide la primera vez. Si lo
+  niegas, entra en un modo demo con contenido de prueba.
 
-## Siguientes pasos sugeridos
-- Ícono y splash screen propios.
-- Vista previa reproducible de video (por ahora se ve la miniatura).
-- Filtros por álbum o fecha.
+## Pendientes
+
+- Estadísticas de espacio liberado.
+- Doble tap para ver en pantalla completa.
+- Rediseño con acabado glassmorphism.
+- Publicación en tiendas.
+
+---
+
+Desarrollada por **Isabella Arrieta** ([@IsabellaArrieta](https://github.com/IsabellaArrieta)).
+Asistencia de código: Claude.
