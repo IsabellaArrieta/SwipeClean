@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useReducer } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,7 +7,7 @@ import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Semantic, radius } from '@/theme/tokens';
 import type { MediaKind } from '@/lib/media';
 
-// Miniaturas de video ya generadas (fallback cuando expo-image no puede sacar el frame).
+// Miniaturas de video ya generadas (fallback si expo-image no saca el frame).
 const videoThumbCache = new Map<string, string>();
 
 function Thumb({
@@ -23,16 +23,17 @@ function Thumb({
   selected: boolean;
   onPress: () => void;
 }) {
-  // expo-image (Glide en Android) saca el frame de un video local directamente.
-  // Solo si eso falla generamos la miniatura con expo-video-thumbnails.
-  const [src, setSrc] = useState<string>(() => videoThumbCache.get(uri) ?? uri);
+  const [, force] = useReducer((x: number) => x + 1, 0);
+
+  // Derivado de props + caché => seguro cuando FlashList recicla la celda.
+  const src = kind === 'video' ? (videoThumbCache.get(uri) ?? uri) : uri;
 
   const onError = () => {
-    if (kind !== 'video' || src !== uri || uri.startsWith('http')) return;
+    if (kind !== 'video' || uri.startsWith('http') || videoThumbCache.has(uri)) return;
     VideoThumbnails.getThumbnailAsync(uri, { time: 800, quality: 0.3 })
       .then((r) => {
         videoThumbCache.set(uri, r.uri);
-        setSrc(r.uri);
+        force();
       })
       .catch(() => {});
   };
@@ -46,10 +47,8 @@ function Thumb({
           contentFit="cover"
           cachePolicy="memory-disk"
           priority="low"
-          transition={80}
+          transition={120}
           recyclingKey={uri}
-          placeholder={{ blurhash: 'L6PZfSjE.AyE_3t7t7R**0o#DgR4' }}
-          placeholderContentFit="cover"
           onError={onError}
         />
         {kind === 'video' && (

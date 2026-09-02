@@ -1,13 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-  type ViewToken,
-} from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -50,14 +43,14 @@ export default function Gallery() {
   const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [firstVisible, setFirstVisible] = useState(0);
-  const listRef = useRef<FlatList<Media>>(null);
+  const listRef = useRef<FlashListRef<Media>>(null);
   const runId = useRef(0);
   const cursor = useRef<string | undefined>(undefined);
   const hasMore = useRef(true);
   const loadingMore = useRef(false);
   const trashedRef = useRef<Set<string>>(new Set());
 
-  const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+  const onViewable = useRef(({ viewableItems }: { viewableItems: { index: number | null }[] }) => {
     const i = viewableItems[0]?.index;
     if (i != null) setFirstVisible(Math.max(0, i));
   }).current;
@@ -218,33 +211,18 @@ export default function Gallery() {
         </View>
       ) : (
         <View style={styles.flex}>
-          <FlatList
+          <FlashList
             ref={listRef}
             data={items}
+            extraData={selected}
             keyExtractor={(m) => m.id}
             numColumns={COLS}
             contentContainerStyle={{ padding: 4 }}
-            getItemLayout={(_, index) => ({
-              length: rowH,
-              offset: rowH * Math.floor(index / COLS),
-              index,
-            })}
             onViewableItemsChanged={onViewable}
             viewabilityConfig={VIEWABILITY}
-            onScrollToIndexFailed={({ index, highestMeasuredFrameIndex }) => {
-              const safe = Math.min(index, highestMeasuredFrameIndex);
-              setTimeout(() => {
-                try {
-                  listRef.current?.scrollToIndex({ index: Math.max(0, safe), animated: false });
-                } catch {}
-              }, 150);
-            }}
             onEndReached={loadNext}
             onEndReachedThreshold={1.5}
-            initialNumToRender={18}
-            maxToRenderPerBatch={6}
-            updateCellsBatchingPeriod={80}
-            windowSize={7}
+            drawDistance={rowH * 8}
             renderItem={renderItem}
           />
           <FastScrollbar

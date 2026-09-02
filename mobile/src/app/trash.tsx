@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
-import { Alert, FlatList, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 
@@ -53,8 +54,9 @@ export default function Trash() {
         </View>
       ) : (
         <>
-          <FlatList
+          <FlashList
             data={items}
+            extraData={selected}
             keyExtractor={(i) => i.id}
             numColumns={COLS}
             contentContainerStyle={{ padding: 4 }}
