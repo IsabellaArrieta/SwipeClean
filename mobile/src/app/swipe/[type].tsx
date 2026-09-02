@@ -15,17 +15,32 @@ import { ensurePermission, isDemoMode, requestOrOpenSettings, type MediaKind } f
 import { useSwipeStore } from '@/store/useSwipeStore';
 
 export default function SwipeScreen() {
-  const params = useLocalSearchParams<{ type: MediaKind; jump?: string }>();
+  const params = useLocalSearchParams<{ type: MediaKind; jump?: string; t?: string }>();
   const kind: MediaKind = params.type === 'video' ? 'video' : 'photo';
   const label = kind === 'photo' ? 'Fotos' : 'Videos';
   const router = useRouter();
   const { colors } = useTheme();
 
   const [ready, setReady] = useState(false);
-  const { loading, queue, index, total, reviewed, history, load, swipeLeft, swipeRight, undo } =
-    useSwipeStore();
+  const {
+    loading,
+    queue,
+    index,
+    total,
+    reviewed,
+    history,
+    hasMore,
+    loadingMore,
+    load,
+    swipeLeft,
+    swipeRight,
+    undo,
+  } = useSwipeStore();
 
-  const reload = useCallback(() => load(kind, params.jump ?? null), [load, kind, params.jump]);
+  const reload = useCallback(
+    () => load(kind, params.jump ?? null, params.t ? Number(params.t) : null),
+    [load, kind, params.jump, params.t],
+  );
 
   useEffect(() => {
     ensurePermission().finally(() => setReady(true));
@@ -44,7 +59,8 @@ export default function SwipeScreen() {
     if (next.length) Image.prefetch(next, { cachePolicy: 'memory-disk' });
   }, [queue, index, kind]);
 
-  const done = !loading && index >= queue.length;
+  const waitingMore = index >= queue.length && (hasMore || loadingMore);
+  const done = !loading && index >= queue.length && !hasMore && !loadingMore;
   const current = queue[index];
   const next = queue[index + 1];
   const progress = total === 0 ? 0 : reviewed / total;
@@ -103,7 +119,7 @@ export default function SwipeScreen() {
         </View>
 
         <View style={styles.cardArea}>
-          {loading ? (
+          {loading || waitingMore ? (
             <ActivityIndicator color={colors.primary} />
           ) : done ? (
             <Text style={[styles.title, { color: colors.onSurface, textAlign: 'center' }]}>
@@ -122,7 +138,7 @@ export default function SwipeScreen() {
           )}
         </View>
 
-        {!loading && !done && (
+        {!loading && !done && !waitingMore && (
           <View style={styles.actions}>
             <PillButton label="✕  A papelera" variant="danger" onPress={swipeLeft} style={styles.actionBtn} />
             <PillButton label="✓  Se queda" variant="primary" onPress={swipeRight} style={styles.actionBtn} />

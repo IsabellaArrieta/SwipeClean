@@ -8,14 +8,15 @@ export type Media = {
   uri: string;
   kind: MediaKind;
   name: string;
-  dateAdded: number; // segundos
+  timeMs: number; // fecha de creación en milisegundos
 };
 
-// --- Modo demo -------------------------------------------------------------
-// Expo Go en Android moderno ya no da acceso completo a la galería. Cuando no
-// hay acceso real, usamos estos elementos de prueba para poder practicar la UI.
-// En el APK compilado (EAS) esto no se usa: se lee la galería real.
+const mediaTypeOf = (kind: MediaKind) => [
+  kind === 'photo' ? MediaLibrary.MediaType.photo : MediaLibrary.MediaType.video,
+];
+const SORT: MediaLibrary.SortByValue[] = [[MediaLibrary.SortBy.creationTime, false]]; // más nuevo primero
 
+// --- Modo demo -----------------------------------------------------------
 const DEMO_PREFIX = 'demo:';
 export const isDemoId = (id: string) => id.startsWith(DEMO_PREFIX);
 
@@ -30,68 +31,88 @@ function demoMedia(kind: MediaKind): Media[] {
       uri: `https://picsum.photos/id/${n}/500/750`,
       kind,
       name: `foto_demo_${i + 1}.jpg`,
-      dateAdded: Math.round(Date.now() / 1000) - i * 3600,
+      timeMs: Date.now() - i * 3_600_000,
     }));
   }
   const vids = [
-    'https://media.w3.org/2010/05/video/movie_300.mp4', // ~2.7 MB
-    'https://samplelib.com/mp4/sample-5s.mp4', // ~2.8 MB
-    'https://media.w3.org/2010/05/sintel/trailer.mp4', // ~4.4 MB
-    'https://samplelib.com/mp4/sample-10s.mp4', // ~5.5 MB
+    'https://media.w3.org/2010/05/video/movie_300.mp4',
+    'https://samplelib.com/mp4/sample-5s.mp4',
+    'https://media.w3.org/2010/05/sintel/trailer.mp4',
+    'https://samplelib.com/mp4/sample-10s.mp4',
   ];
   return vids.map((uri, i) => ({
     id: `${DEMO_PREFIX}v${i}`,
     uri,
     kind,
     name: `video_demo_${i + 1}.mp4`,
-    dateAdded: Math.round(Date.now() / 1000) - i * 3600,
+    timeMs: Date.now() - i * 3_600_000,
   }));
 }
 
-// --- Galería real --------------------------------------------------------
+// --- Galería real (paginada) -------------------------------------------
 
-// Lee todas las fotos o videos del dispositivo, más nuevo primero.
-// Equivale a MediaRepository.queryMedia() del proyecto Android.
-export async function queryMedia(kind: MediaKind): Promise<Media[]> {
+const toMedia = (a: MediaLibrary.Asset, kind: MediaKind): Media => ({
+  id: a.id,
+  uri: a.uri,
+  kind,
+  name: a.filename,
+  timeMs: a.creationTime,
+});
+
+export type MediaPage = { items: Media[]; cursor?: string; hasMore: boolean; demo: boolean };
+
+// Una página de la galería. `after` = cursor de la página anterior;
+// `before` = solo elementos anteriores a esa fecha (para retomar revisión).
+export async function queryMediaPage(
+  kind: MediaKind,
+  opts: { after?: string; before?: number; first?: number } = {},
+): Promise<MediaPage> {
   try {
-    const out: Media[] = [];
-    let after: string | undefined;
-    let hasNext = true;
-
-    while (hasNext) {
-      const page = await MediaLibrary.getAssetsAsync({
-        mediaType: [kind === 'photo' ? MediaLibrary.MediaType.photo : MediaLibrary.MediaType.video],
-        sortBy: [[MediaLibrary.SortBy.creationTime, false]], // false = descendente (más nuevo primero)
-        first: 1000,
-        after,
-      });
-      for (const a of page.assets) {
-        out.push({
-          id: a.id,
-          uri: a.uri,
-          kind,
-          name: a.filename,
-          dateAdded: Math.round(a.creationTime / 1000),
-        });
-      }
-      hasNext = page.hasNextPage;
-      after = page.endCursor;
-    }
-
-    if (out.length === 0) {
-      _demoMode = true;
-      return demoMedia(kind);
-    }
+    const page = await MediaLibrary.getAssetsAsync({
+      mediaType: mediaTypeOf(kind),
+      sortBy: SORT,
+      first: opts.first ?? 120,
+      after: opts.after,
+      createdBefore: opts.before,
+    });
     _demoMode = false;
-    return out;
+    return {
+      items: page.assets.map((a) => toMedia(a, kind)),
+      cursor: page.endCursor,
+      hasMore: page.hasNextPage,
+      demo: false,
+    };
   } catch {
     _demoMode = true;
-    return demoMedia(kind);
+    return { items: demoMedia(kind), hasMore: false, demo: true };
   }
 }
 
-// Borrado real: muestra el diálogo de confirmación del sistema (iOS y Android).
-// Devuelve true si el usuario confirmó y se borró. Los elementos demo no se borran de verdad.
+// Total de elementos del tipo, sin cargar la lista (barato).
+export async function getTotalCount(kind: MediaKind): Promise<number> {
+  try {
+    const r = await MediaLibrary.getAssetsAsync({ mediaType: mediaTypeOf(kind), first: 1 });
+    return r.totalCount ?? 0;
+  } catch {
+    return demoMedia(kind).length;
+  }
+}
+
+// Cuántos elementos son anteriores a `beforeMs` (= cuántos quedan por revisar).
+export async function countBefore(kind: MediaKind, beforeMs: number): Promise<number> {
+  try {
+    const r = await MediaLibrary.getAssetsAsync({
+      mediaType: mediaTypeOf(kind),
+      first: 1,
+      createdBefore: beforeMs,
+    });
+    return r.totalCount ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+// --- Borrado ----------------------------------------------------------
 export async function deleteAssets(ids: string[]): Promise<boolean> {
   const real = ids.filter((id) => !isDemoId(id));
   if (real.length === 0) return true;
@@ -102,15 +123,10 @@ export async function deleteAssets(ids: string[]): Promise<boolean> {
   }
 }
 
-// Solo pedimos fotos y video (nunca AUDIO): pedir todos los permisos granulares
-// hace fallar getPermissionsAsync en Expo Go porque no declara AUDIO en el manifest.
+// --- Permisos -------------------------------------------------------
 const GRANULAR = ['photo', 'video'] as const;
+const ok = (r: MediaLibrary.PermissionResponse) => r.granted || r.accessPrivileges === 'limited';
 
-const ok = (r: MediaLibrary.PermissionResponse) =>
-  r.granted || r.accessPrivileges === 'limited';
-
-// Pide el permiso (muestra el diálogo del sistema si se puede). No bloquea:
-// si lo deniegan, la app sigue en modo demo.
 export async function ensurePermission(): Promise<boolean> {
   try {
     const current = await MediaLibrary.getPermissionsAsync(false, [...GRANULAR]);
@@ -126,8 +142,6 @@ export async function ensurePermission(): Promise<boolean> {
   }
 }
 
-// Segundo intento desde el banner "Modo demo": pide de nuevo y, si ya no se
-// puede preguntar, abre los ajustes del sistema para dar el permiso a mano.
 export async function requestOrOpenSettings(): Promise<boolean> {
   try {
     const res = await MediaLibrary.requestPermissionsAsync(false, [...GRANULAR]);

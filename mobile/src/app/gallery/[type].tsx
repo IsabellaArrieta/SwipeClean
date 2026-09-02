@@ -15,13 +15,22 @@ import { CircleIconButton, PillButton } from '@/components/ui';
 import Thumb from '@/components/Thumb';
 import { FastScrollbar } from '@/components/FastScrollbar';
 import { useTheme } from '@/theme/ThemeContext';
-import { queryMedia, isDemoMode, requestOrOpenSettings, type Media, type MediaKind } from '@/lib/media';
+import {
+  getTotalCount,
+  isDemoMode,
+  queryMediaPage,
+  requestOrOpenSettings,
+  type Media,
+  type MediaKind,
+} from '@/lib/media';
 import { trashIds } from '@/lib/db';
-import { clearCheckpoint, getCheckpoint } from '@/lib/storage';
+import { clearCheckpoint } from '@/lib/storage';
 import { useTrashStore } from '@/store/useTrashStore';
 import { Semantic } from '@/theme/tokens';
 
 const COLS = 3;
+const FIRST_PAGE = 150;
+const BG_PAGE = 1000;
 
 export default function Gallery() {
   const params = useLocalSearchParams<{ type: MediaKind }>();
@@ -33,40 +42,54 @@ export default function Gallery() {
   const { width } = useWindowDimensions();
   const sendToTrash = useTrashStore((s) => s.sendToTrash);
 
-  const rowH = (width - 8) / COLS; // celdas cuadradas, padding 4 en el contenedor
+  const rowH = (width - 8) / COLS;
 
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Media[]>([]);
+  const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [firstVisible, setFirstVisible] = useState(0);
   const listRef = useRef<FlatList<Media>>(null);
-  const scrolled = useRef(false);
+  const runId = useRef(0);
 
   const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
-    if (viewableItems.length > 0 && viewableItems[0].index != null) {
-      setFirstVisible(viewableItems[0].index);
-    }
+    const i = viewableItems[0]?.index;
+    if (i != null) setFirstVisible(i);
   }).current;
 
   const reload = useCallback(async () => {
+    const myRun = ++runId.current;
     setLoading(true);
-    const all = await queryMedia(kind);
-    const trashed = new Set(await trashIds());
-    const pending = all.filter((m) => !trashed.has(m.id));
-    setItems(pending);
+    setItems([]);
     setSelected(new Set());
+
+    const [count, trashedArr] = await Promise.all([getTotalCount(kind), trashIds()]);
+    const trashed = new Set(trashedArr);
+    if (myRun !== runId.current) return;
+    setTotal(count);
+
+    // Primera página: se muestra ya.
+    let page = await queryMediaPage(kind, { first: FIRST_PAGE });
+    if (myRun !== runId.current) return;
+    let acc = page.items.filter((m) => !trashed.has(m.id));
+    setItems(acc);
     setLoading(false);
 
-    const last = await getCheckpoint(kind);
-    const idx = last ? pending.findIndex((m) => m.id === last) : 0;
-    if (idx > 0 && !scrolled.current) {
-      scrolled.current = true;
-      requestAnimationFrame(() => listRef.current?.scrollToIndex({ index: idx, animated: false }));
+    // Resto: en segundo plano, sin bloquear la UI.
+    while (page.hasMore && myRun === runId.current) {
+      await new Promise((r) => setTimeout(r, 0));
+      page = await queryMediaPage(kind, { after: page.cursor, first: BG_PAGE });
+      if (myRun !== runId.current) return;
+      acc = acc.concat(page.items.filter((m) => !trashed.has(m.id)));
+      setItems(acc);
     }
   }, [kind]);
 
   useEffect(() => {
     reload();
+    return () => {
+      runId.current++;
+    };
   }, [reload]);
 
   const toggle = (id: string) =>
@@ -77,14 +100,24 @@ export default function Gallery() {
     });
 
   const onSendToTrash = async () => {
-    const rows = items.filter((m) => selected.has(m.id)).map((m) => ({ ...m, trashedAt: Date.now() }));
+    const rows = items.filter((m) => selected.has(m.id)).map((m) => ({
+      id: m.id,
+      uri: m.uri,
+      kind: m.kind,
+      name: m.name,
+      dateAdded: Math.round(m.timeMs / 1000),
+      trashedAt: Date.now(),
+    }));
     await sendToTrash(rows);
-    await reload();
+    const gone = new Set(rows.map((r) => r.id));
+    setItems((prev) => prev.filter((m) => !gone.has(m.id)));
+    setSelected(new Set());
   };
 
   const onJump = () => {
     const id = [...selected][0];
-    if (id) router.replace(`/swipe/${kind}?jump=${encodeURIComponent(id)}`);
+    const m = items.find((x) => x.id === id);
+    if (m) router.replace(`/swipe/${kind}?jump=${encodeURIComponent(m.id)}&t=${m.timeMs}`);
   };
 
   const onReset = async () => {
@@ -92,9 +125,9 @@ export default function Gallery() {
     router.dismissAll();
   };
 
-  const progress = items.length > 1 ? firstVisible / (items.length - 1) : 0;
+  const progress = total > 1 ? firstVisible / (total - 1) : 0;
   const seek = (f: number) => {
-    const target = Math.min(items.length - 1, Math.max(0, Math.round(f * (items.length - 1))));
+    const target = Math.min(items.length - 1, Math.max(0, Math.round(f * (total - 1))));
     listRef.current?.scrollToIndex({ index: target, animated: false });
   };
 
@@ -103,7 +136,7 @@ export default function Gallery() {
       <View style={styles.header}>
         <CircleIconButton name="arrow-back" onPress={() => router.back()} />
         <Text style={[styles.title, { color: colors.onSurface }]} numberOfLines={1}>
-          {title} ({items.length})
+          {title} ({total})
         </Text>
         <Text style={[styles.link, { color: colors.primary }]} onPress={() => router.push('/trash')}>
           Papelera
@@ -114,8 +147,8 @@ export default function Gallery() {
         <Text
           style={[styles.demo, { color: Semantic.amber }]}
           onPress={() => {
-            requestOrOpenSettings().then((granted) => {
-              if (granted) reload();
+            requestOrOpenSettings().then((g) => {
+              if (g) reload();
             });
           }}
         >
@@ -123,7 +156,7 @@ export default function Gallery() {
         </Text>
       )}
 
-      {!loading && items.length > 0 && (
+      {!loading && total > 0 && (
         <View style={styles.progressRow}>
           <View style={[styles.scrollTrack, { backgroundColor: colors.primary + '1A' }]}>
             <View
@@ -134,7 +167,7 @@ export default function Gallery() {
             />
           </View>
           <Text style={[styles.counter, { color: colors.onSurfaceVariant }]}>
-            {Math.min(items.length, firstVisible + 1)} / {items.length} {noun}
+            {Math.min(total, firstVisible + 1)} / {total} {noun}
           </Text>
         </View>
       )}
@@ -163,11 +196,11 @@ export default function Gallery() {
             onViewableItemsChanged={onViewable}
             viewabilityConfig={{ itemVisiblePercentThreshold: 10 }}
             onScrollToIndexFailed={({ index }) =>
-              setTimeout(() => listRef.current?.scrollToIndex({ index, animated: false }), 200)
+              setTimeout(() => listRef.current?.scrollToIndex({ index, animated: false }), 120)
             }
             removeClippedSubviews
             initialNumToRender={21}
-            maxToRenderPerBatch={12}
+            maxToRenderPerBatch={9}
             windowSize={5}
             renderItem={({ item }) => (
               <Thumb
@@ -180,8 +213,8 @@ export default function Gallery() {
           />
           <FastScrollbar
             progress={progress}
-            label={`${Math.min(items.length, firstVisible + 1)}`}
-            count={items.length}
+            label={`${Math.min(total, firstVisible + 1)}`}
+            count={total}
             onSeek={seek}
           />
         </View>
