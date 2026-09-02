@@ -82,7 +82,7 @@ export default function SwipeScreen() {
           source={{ uri }}
           style={styles.blurBg}
           contentFit="cover"
-          blurRadius={40}
+          blurRadius={90}
           cachePolicy="memory-disk"
           transition={0}
         />

@@ -33,7 +33,7 @@ export function VideoPoster({ uri }: { uri: string }) {
             source={{ uri: poster }}
             style={styles.blurBg}
             contentFit="cover"
-            blurRadius={40}
+            blurRadius={90}
             transition={0}
           />
           <Image source={{ uri: poster }} style={styles.fill} contentFit="contain" transition={0} />

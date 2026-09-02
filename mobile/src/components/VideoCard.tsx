@@ -73,7 +73,7 @@ export function VideoCard({ uri }: { uri: string }) {
       } catch {
         // el player ya se liberó (cambio de video / salida de pantalla)
       }
-    }, 250);
+    }, 150);
     return () => clearInterval(id);
   }, [player]);
 
@@ -95,12 +95,19 @@ export function VideoCard({ uri }: { uri: string }) {
           source={{ uri: poster }}
           style={styles.poster}
           contentFit="cover"
-          blurRadius={40}
+          blurRadius={90}
           transition={0}
         />
       )}
 
-      <VideoView player={player} style={styles.fill} contentFit="contain" nativeControls={false} />
+      {/* Ocultamos el player hasta que el video nuevo arranque: al reutilizar el
+          player su superficie sigue mostrando el último frame del anterior. */}
+      <VideoView
+        player={player}
+        style={[styles.fill, { opacity: started ? 1 : 0 }]}
+        contentFit="contain"
+        nativeControls={false}
+      />
 
       {!started && poster && (
         <Image source={{ uri: poster }} style={styles.poster} contentFit="contain" transition={0} />
