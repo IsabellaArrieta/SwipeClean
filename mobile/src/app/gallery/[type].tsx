@@ -31,6 +31,7 @@ import { Semantic } from '@/theme/tokens';
 const COLS = 3;
 const FIRST_PAGE = 150;
 const BG_PAGE = 1000;
+const VIEWABILITY = { itemVisiblePercentThreshold: 10 };
 
 export default function Gallery() {
   const params = useLocalSearchParams<{ type: MediaKind }>();
@@ -54,7 +55,7 @@ export default function Gallery() {
 
   const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const i = viewableItems[0]?.index;
-    if (i != null) setFirstVisible(i);
+    if (i != null) setFirstVisible(Math.max(0, i));
   }).current;
 
   const reload = useCallback(async () => {
@@ -111,6 +112,7 @@ export default function Gallery() {
     await sendToTrash(rows);
     const gone = new Set(rows.map((r) => r.id));
     setItems((prev) => prev.filter((m) => !gone.has(m.id)));
+    setTotal((t) => Math.max(0, t - gone.size));
     setSelected(new Set());
   };
 
@@ -125,10 +127,17 @@ export default function Gallery() {
     router.dismissAll();
   };
 
-  const progress = total > 1 ? firstVisible / (total - 1) : 0;
+  const progress = total > 1 ? Math.min(1, firstVisible / (total - 1)) : 0;
   const seek = (f: number) => {
-    const target = Math.min(items.length - 1, Math.max(0, Math.round(f * (total - 1))));
-    listRef.current?.scrollToIndex({ index: target, animated: false });
+    const max = items.length - 1;
+    if (max < 0) return;
+    const wanted = Math.round(Math.min(1, Math.max(0, f)) * Math.max(0, total - 1));
+    const target = Math.min(max, Math.max(0, wanted));
+    try {
+      listRef.current?.scrollToIndex({ index: target, animated: false });
+    } catch {
+      // el fondo aún no cargó hasta ahí; nos quedamos en lo cargado
+    }
   };
 
   return (
@@ -194,10 +203,15 @@ export default function Gallery() {
               index,
             })}
             onViewableItemsChanged={onViewable}
-            viewabilityConfig={{ itemVisiblePercentThreshold: 10 }}
-            onScrollToIndexFailed={({ index }) =>
-              setTimeout(() => listRef.current?.scrollToIndex({ index, animated: false }), 120)
-            }
+            viewabilityConfig={VIEWABILITY}
+            onScrollToIndexFailed={({ index, highestMeasuredFrameIndex }) => {
+              const safe = Math.min(index, highestMeasuredFrameIndex);
+              setTimeout(() => {
+                try {
+                  listRef.current?.scrollToIndex({ index: Math.max(0, safe), animated: false });
+                } catch {}
+              }, 150);
+            }}
             removeClippedSubviews
             initialNumToRender={21}
             maxToRenderPerBatch={9}
