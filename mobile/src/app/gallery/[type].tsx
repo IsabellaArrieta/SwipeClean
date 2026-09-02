@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
-import Animated, {
-  useAnimatedScrollHandler,
-  useAnimatedStyle,
-  useSharedValue,
-} from 'react-native-reanimated';
+import {
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+  type ViewToken,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -19,34 +22,31 @@ import { useTrashStore } from '@/store/useTrashStore';
 import { Semantic } from '@/theme/tokens';
 
 const COLS = 3;
-const AList = Animated.createAnimatedComponent(FlatList<Media>);
 
 export default function Gallery() {
   const params = useLocalSearchParams<{ type: MediaKind }>();
   const kind: MediaKind = params.type === 'video' ? 'video' : 'photo';
   const title = kind === 'photo' ? 'Galería de fotos' : 'Galería de videos';
+  const noun = kind === 'photo' ? 'fotos' : 'videos';
   const router = useRouter();
   const { colors } = useTheme();
+  const { width } = useWindowDimensions();
   const sendToTrash = useTrashStore((s) => s.sendToTrash);
+
+  const rowH = (width - 8) / COLS; // celdas cuadradas, padding 4 en el contenedor
 
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Media[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [firstVisible, setFirstVisible] = useState(0);
   const listRef = useRef<FlatList<Media>>(null);
   const scrolled = useRef(false);
 
-  const scrollY = useSharedValue(0);
-  const [contentH, setContentH] = useState(0);
-  const [viewH, setViewH] = useState(0);
-  const maxScroll = Math.max(0, contentH - viewH);
-
-  const onScroll = useAnimatedScrollHandler((e) => {
-    scrollY.value = e.contentOffset.y;
-  });
-
-  const barStyle = useAnimatedStyle(() => ({
-    width: `${maxScroll > 0 ? Math.min(1, Math.max(0, scrollY.value / maxScroll)) * 100 : 0}%`,
-  }));
+  const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    if (viewableItems.length > 0 && viewableItems[0].index != null) {
+      setFirstVisible(viewableItems[0].index);
+    }
+  }).current;
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -61,9 +61,7 @@ export default function Gallery() {
     const idx = last ? pending.findIndex((m) => m.id === last) : 0;
     if (idx > 0 && !scrolled.current) {
       scrolled.current = true;
-      requestAnimationFrame(() =>
-        listRef.current?.scrollToIndex({ index: Math.floor(idx / COLS), animated: false }),
-      );
+      requestAnimationFrame(() => listRef.current?.scrollToIndex({ index: idx, animated: false }));
     }
   }, [kind]);
 
@@ -94,6 +92,12 @@ export default function Gallery() {
     router.dismissAll();
   };
 
+  const progress = items.length > 1 ? firstVisible / (items.length - 1) : 0;
+  const seek = (f: number) => {
+    const target = Math.min(items.length - 1, Math.max(0, Math.round(f * (items.length - 1))));
+    listRef.current?.scrollToIndex({ index: target, animated: false });
+  };
+
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
@@ -120,8 +124,18 @@ export default function Gallery() {
       )}
 
       {!loading && items.length > 0 && (
-        <View style={[styles.scrollTrack, { backgroundColor: colors.primary + '1A' }]}>
-          <Animated.View style={[styles.scrollFill, { backgroundColor: colors.primary }, barStyle]} />
+        <View style={styles.progressRow}>
+          <View style={[styles.scrollTrack, { backgroundColor: colors.primary + '1A' }]}>
+            <View
+              style={[
+                styles.scrollFill,
+                { backgroundColor: colors.primary, width: `${Math.min(1, progress) * 100}%` },
+              ]}
+            />
+          </View>
+          <Text style={[styles.counter, { color: colors.onSurfaceVariant }]}>
+            {Math.min(items.length, firstVisible + 1)} / {items.length} {noun}
+          </Text>
         </View>
       )}
 
@@ -134,20 +148,27 @@ export default function Gallery() {
           <Text style={{ color: colors.onSurfaceVariant }}>No hay elementos pendientes por revisar</Text>
         </View>
       ) : (
-        <View style={styles.flex} onLayout={(e) => setViewH(e.nativeEvent.layout.height)}>
-          <AList
-            ref={listRef as never}
+        <View style={styles.flex}>
+          <FlatList
+            ref={listRef}
             data={items}
             keyExtractor={(m) => m.id}
             numColumns={COLS}
             contentContainerStyle={{ padding: 4 }}
-            onScroll={onScroll}
-            scrollEventThrottle={16}
-            onContentSizeChange={(_w, h) => setContentH(h)}
-            onScrollToIndexFailed={() => {}}
+            getItemLayout={(_, index) => ({
+              length: rowH,
+              offset: rowH * Math.floor(index / COLS),
+              index,
+            })}
+            onViewableItemsChanged={onViewable}
+            viewabilityConfig={{ itemVisiblePercentThreshold: 10 }}
+            onScrollToIndexFailed={({ index }) =>
+              setTimeout(() => listRef.current?.scrollToIndex({ index, animated: false }), 200)
+            }
             removeClippedSubviews
-            initialNumToRender={24}
-            windowSize={7}
+            initialNumToRender={21}
+            maxToRenderPerBatch={12}
+            windowSize={5}
             renderItem={({ item }) => (
               <Thumb
                 uri={item.uri}
@@ -158,12 +179,10 @@ export default function Gallery() {
             )}
           />
           <FastScrollbar
+            progress={progress}
+            label={`${Math.min(items.length, firstVisible + 1)}`}
             count={items.length}
-            columns={COLS}
-            scrollY={scrollY}
-            maxScroll={maxScroll}
-            trackHeight={viewH}
-            onScrollToOffset={(offset) => listRef.current?.scrollToOffset({ offset, animated: false })}
+            onSeek={seek}
           />
         </View>
       )}
@@ -193,8 +212,10 @@ const styles = StyleSheet.create({
   title: { flex: 1, fontSize: 18, fontWeight: '600' },
   link: { fontSize: 13, fontWeight: '600' },
   demo: { fontSize: 12, textAlign: 'center', paddingBottom: 6, fontWeight: '600' },
-  scrollTrack: { height: 3, marginHorizontal: 16, marginBottom: 4, borderRadius: 2, overflow: 'hidden' },
+  progressRow: { paddingHorizontal: 16, paddingBottom: 6, gap: 4 },
+  scrollTrack: { height: 3, borderRadius: 2, overflow: 'hidden' },
   scrollFill: { height: 3, borderRadius: 2 },
+  counter: { fontSize: 11, textAlign: 'right' },
   footer: { borderTopWidth: 1, padding: 12, gap: 8 },
   rowGap: { flexDirection: 'row', gap: 8 },
   grow: { flex: 1 },

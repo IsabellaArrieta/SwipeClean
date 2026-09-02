@@ -1,74 +1,58 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  runOnJS,
-  useAnimatedReaction,
-  useAnimatedStyle,
-  useSharedValue,
-  type SharedValue,
-} from 'react-native-reanimated';
 
-// Franja invisible en el borde derecho para desplazamiento rápido, con burbuja
-// que muestra el número de elemento (portado del FastScrollBar de Compose).
+import { useTheme } from '@/theme/ThemeContext';
+
+const THUMB = 48;
+
+// Franja de desplazamiento rápido en el borde derecho, con burbuja de contador.
 export function FastScrollbar({
+  progress,
+  label,
   count,
-  columns,
-  scrollY,
-  maxScroll,
-  trackHeight,
-  onScrollToOffset,
+  minCount = 30,
+  onSeek,
 }: {
+  progress: number; // 0..1 posición actual
+  label: string; // texto de la burbuja (ej. "45")
   count: number;
-  columns: number;
-  scrollY: SharedValue<number>;
-  maxScroll: number;
-  trackHeight: number;
-  onScrollToOffset: (offset: number) => void;
+  minCount?: number;
+  onSeek: (fraction: number) => void; // 0..1
 }) {
+  const { colors } = useTheme();
+  const [h, setH] = useState(0);
   const [dragging, setDragging] = useState(false);
-  const [label, setLabel] = useState('1');
-  const y = useSharedValue(0);
 
-  useAnimatedReaction(
-    () => (maxScroll > 0 ? Math.min(1, Math.max(0, scrollY.value / maxScroll)) : 0),
-    (frac) => {
-      if (!dragging) y.value = frac * trackHeight;
-    },
-    [trackHeight, maxScroll, dragging],
-  );
-
-  const scrub = (py: number) => {
-    const f = Math.min(1, Math.max(0, py / trackHeight));
-    onScrollToOffset(f * maxScroll);
-    setLabel(`${Math.min(count, Math.round(f * (count - 1)) + 1)}`);
-  };
-
+  const clamp = (v: number) => Math.min(1, Math.max(0, v));
   const pan = Gesture.Pan()
+    .runOnJS(true)
     .onBegin((e) => {
-      runOnJS(setDragging)(true);
-      y.value = e.y;
-      runOnJS(scrub)(e.y);
+      setDragging(true);
+      onSeek(clamp(e.y / h));
     })
-    .onUpdate((e) => {
-      y.value = Math.min(trackHeight, Math.max(0, e.y));
-      runOnJS(scrub)(e.y);
-    })
-    .onFinalize(() => runOnJS(setDragging)(false));
+    .onUpdate((e) => onSeek(clamp(e.y / h)))
+    .onFinalize(() => setDragging(false));
 
-  const bubbleStyle = useAnimatedStyle(() => ({ transform: [{ translateY: y.value - 16 }] }));
+  if (count <= minCount) return null;
 
-  if (count <= columns * 6) return null;
+  const top = clamp(progress) * Math.max(0, h - THUMB);
 
   return (
     <GestureDetector gesture={pan}>
-      <View style={styles.hit}>
+      <View style={styles.hit} onLayout={(e) => setH(e.nativeEvent.layout.height)}>
+        <View
+          style={[
+            styles.thumb,
+            { top, backgroundColor: colors.primary, width: dragging ? 6 : 4 },
+          ]}
+        />
         {dragging && (
-          <Animated.View style={[styles.bubble, bubbleStyle]}>
+          <View style={[styles.bubble, { top: Math.max(0, top - 6) }]}>
             <Text style={styles.bubbleText}>
               {label}/{count}
             </Text>
-          </Animated.View>
+          </View>
         )}
       </View>
     </GestureDetector>
@@ -76,12 +60,12 @@ export function FastScrollbar({
 }
 
 const styles = StyleSheet.create({
-  hit: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 32 },
+  hit: { position: 'absolute', right: 0, top: 8, bottom: 8, width: 28, alignItems: 'flex-end' },
+  thumb: { position: 'absolute', right: 3, height: THUMB, borderRadius: 3 },
   bubble: {
     position: 'absolute',
-    right: 28,
-    top: 0,
-    backgroundColor: 'rgba(0,0,0,0.8)',
+    right: 16,
+    backgroundColor: 'rgba(0,0,0,0.82)',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,

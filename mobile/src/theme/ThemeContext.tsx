@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SystemUI from 'expo-system-ui';
 
 import { dark, light, type Scheme } from './tokens';
 
@@ -21,6 +22,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       if (v != null) setIsDark(v === 'true');
     });
   }, []);
+
+  // Pinta el fondo nativo de la ventana para que las transiciones entre
+  // pantallas no muestren un flash blanco en modo oscuro.
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(isDark ? dark.background : light.background);
+  }, [isDark]);
 
   const toggle = () => {
     setIsDark((prev) => {

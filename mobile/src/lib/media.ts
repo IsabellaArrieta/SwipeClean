@@ -34,10 +34,10 @@ function demoMedia(kind: MediaKind): Media[] {
     }));
   }
   const vids = [
-    'https://media.w3.org/2010/05/sintel/trailer.mp4',
-    'https://media.w3.org/2010/05/bunny/trailer.mp4',
-    'https://media.w3.org/2010/05/bunny/movie.mp4',
-    'https://media.w3.org/2010/05/video/movie_300.mp4',
+    'https://media.w3.org/2010/05/video/movie_300.mp4', // ~2.7 MB
+    'https://samplelib.com/mp4/sample-5s.mp4', // ~2.8 MB
+    'https://media.w3.org/2010/05/sintel/trailer.mp4', // ~4.4 MB
+    'https://samplelib.com/mp4/sample-10s.mp4', // ~5.5 MB
   ];
   return vids.map((uri, i) => ({
     id: `${DEMO_PREFIX}v${i}`,

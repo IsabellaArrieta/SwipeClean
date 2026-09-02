@@ -46,7 +46,21 @@ export default function SwipeScreen() {
 
   const done = !loading && index >= queue.length;
   const current = queue[index];
+  const next = queue[index + 1];
   const progress = total === 0 ? 0 : reviewed / total;
+
+  const renderMedia = (uri: string) =>
+    kind === 'video' ? (
+      <VideoCard uri={uri} />
+    ) : (
+      <Image
+        source={{ uri }}
+        style={styles.media}
+        contentFit="contain"
+        cachePolicy="memory-disk"
+        transition={0}
+      />
+    );
 
   return (
     <LinearGradient colors={[colors.background, colors.surface]} style={styles.flex}>
@@ -98,19 +112,13 @@ export default function SwipeScreen() {
                 : `¡Terminaste! No quedan ${label.toLowerCase()} por revisar`}
             </Text>
           ) : (
-            <SwipeCard key={current.id} onSwipeRight={swipeRight} onSwipeLeft={swipeLeft}>
-              {kind === 'video' ? (
-                <VideoCard uri={current.uri} />
-              ) : (
-                <Image
-                  source={{ uri: current.uri }}
-                  style={styles.media}
-                  contentFit="contain"
-                  cachePolicy="memory-disk"
-                  transition={0}
-                />
-              )}
-            </SwipeCard>
+            <SwipeCard
+              frontKey={current.id}
+              front={renderMedia(current.uri)}
+              back={next && kind === 'photo' ? renderMedia(next.uri) : null}
+              onSwipeRight={swipeRight}
+              onSwipeLeft={swipeLeft}
+            />
           )}
         </View>
 

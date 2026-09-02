@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,7 @@ export function VideoCard({ uri }: { uri: string }) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
     p.muted = true;
+    p.bufferOptions = { minBufferForPlayback: 0.5, preferredForwardBufferDuration: 5 };
     p.play();
   });
 
@@ -16,14 +17,16 @@ export function VideoCard({ uri }: { uri: string }) {
   const [muted, setMuted] = useState(true);
   const [pos, setPos] = useState(0);
   const [dur, setDur] = useState(0);
+  const [buffering, setBuffering] = useState(true);
   const scrubbing = useRef(false);
 
   useEffect(() => {
     const id = setInterval(() => {
+      setBuffering(player.status === 'loading');
       if (scrubbing.current) return;
       setDur(player.duration || 0);
       setPos(player.currentTime || 0);
-    }, 300);
+    }, 250);
     return () => clearInterval(id);
   }, [player]);
 
@@ -40,9 +43,15 @@ export function VideoCard({ uri }: { uri: string }) {
     <View style={styles.fill}>
       <VideoView player={player} style={styles.fill} contentFit="contain" nativeControls={false} />
 
-      <Pressable style={styles.playBtn} onPress={togglePlay}>
-        <Ionicons name={playing ? 'pause' : 'play'} size={28} color="#fff" />
-      </Pressable>
+      {buffering ? (
+        <View style={styles.playBtn}>
+          <ActivityIndicator color="#fff" />
+        </View>
+      ) : (
+        <Pressable style={styles.playBtn} onPress={togglePlay}>
+          <Ionicons name={playing ? 'pause' : 'play'} size={28} color="#fff" />
+        </Pressable>
+      )}
 
       <View style={styles.bottom}>
         <Slider

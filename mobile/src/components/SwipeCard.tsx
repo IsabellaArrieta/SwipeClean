@@ -1,5 +1,5 @@
-import { type ReactNode } from 'react';
-import { StyleSheet, useWindowDimensions, View, Text } from 'react-native';
+import { useEffect, type ReactNode } from 'react';
+import { StyleSheet, Text, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   interpolate,
@@ -16,35 +16,39 @@ import { Indigo, Semantic, radius } from '@/theme/tokens';
 const THRESHOLD = 120;
 
 type Props = {
+  frontKey: string;
+  front: ReactNode;
+  back?: ReactNode | null;
   onSwipeRight: () => void;
   onSwipeLeft: () => void;
-  children: ReactNode;
 };
 
-// Card arrastrable estilo Tinder. Derecha = se queda, izquierda = a papelera.
-// El fondo y el borde cambian de color mientras arrastras. Portado de ui/components/SwipeCard.kt.
-export function SwipeCard({ onSwipeRight, onSwipeLeft, children }: Props) {
+// Card arrastrable estilo Tinder con la siguiente carta detrás (no se desmonta
+// al avanzar, así no hay parpadeo). Portado de ui/components/SwipeCard.kt.
+export function SwipeCard({ frontKey, front, back, onSwipeRight, onSwipeLeft }: Props) {
   const { width } = useWindowDimensions();
   const x = useSharedValue(0);
   const y = useSharedValue(0);
-  const gone = useSharedValue(0); // dirección de salida: -1 izq, 1 der
+
+  // Al cambiar de elemento, la carta ya voló fuera de pantalla: la devolvemos
+  // a su sitio sin animación (invisible) con el contenido nuevo ya montado.
+  useEffect(() => {
+    x.value = 0;
+    y.value = 0;
+  }, [frontKey]);
 
   const fly = (dir: 1 | -1, cb: () => void) => {
     'worklet';
-    gone.value = dir;
-    x.value = withTiming(dir * width * 1.5, { duration: 220 }, () => {
-      runOnJS(cb)();
-      // reset para la siguiente card
-      x.value = 0;
-      y.value = 0;
-      gone.value = 0;
+    x.value = withTiming(dir * width * 1.5, { duration: 200 }, (done) => {
+      if (done) runOnJS(cb)();
     });
+    y.value = withTiming(y.value + 40, { duration: 200 });
   };
 
   const pan = Gesture.Pan()
     .onUpdate((e) => {
       x.value = e.translationX;
-      y.value = e.translationY * 0.2;
+      y.value = e.translationY * 0.15;
     })
     .onEnd(() => {
       if (x.value > THRESHOLD) fly(1, onSwipeRight);
@@ -55,55 +59,61 @@ export function SwipeCard({ onSwipeRight, onSwipeLeft, children }: Props) {
       }
     });
 
-  const cardStyle = useAnimatedStyle(() => {
+  const frontStyle = useAnimatedStyle(() => {
     const t = interpolate(x.value, [-THRESHOLD, 0, THRESHOLD], [-1, 0, 1], 'clamp');
     return {
       transform: [
         { translateX: x.value },
         { translateY: y.value },
-        { rotate: `${interpolate(x.value, [-width, width], [-15, 15], 'clamp')}deg` },
+        { rotate: `${interpolate(x.value, [-width, width], [-14, 14], 'clamp')}deg` },
       ],
-      backgroundColor: interpolateColor(
-        t,
-        [-1, 0, 1],
-        ['#FEE2E2', '#E0E7FF', '#DCFCE7'],
-      ),
-      borderColor: interpolateColor(
-        t,
-        [-1, 0, 1],
-        [Semantic.danger, Indigo[600], Semantic.success],
-      ),
+      backgroundColor: interpolateColor(t, [-1, 0, 1], ['#FEE2E2', '#E0E7FF', '#DCFCE7']),
+      borderColor: interpolateColor(t, [-1, 0, 1], [Semantic.danger, Indigo[600], Semantic.success]),
     };
   });
 
-  const keepBadge = useAnimatedStyle(() => ({
-    opacity: interpolate(x.value, [20, 80], [0, 1], 'clamp'),
-  }));
-  const goBadge = useAnimatedStyle(() => ({
-    opacity: interpolate(x.value, [-80, -20], [1, 0], 'clamp'),
-  }));
+  const backStyle = useAnimatedStyle(() => {
+    const p = interpolate(Math.abs(x.value), [0, THRESHOLD], [0, 1], 'clamp');
+    return { transform: [{ scale: interpolate(p, [0, 1], [0.94, 1]) }], opacity: interpolate(p, [0, 1], [0.6, 1]) };
+  });
+
+  const keepBadge = useAnimatedStyle(() => ({ opacity: interpolate(x.value, [20, 80], [0, 1], 'clamp') }));
+  const goBadge = useAnimatedStyle(() => ({ opacity: interpolate(x.value, [-80, -20], [1, 0], 'clamp') }));
 
   return (
-    <GestureDetector gesture={pan}>
-      <Animated.View style={[styles.card, cardStyle]}>
-        {children}
-        <Animated.View style={[styles.badge, styles.badgeLeft, keepBadge]}>
-          <Text style={styles.badgeText}>SE QUEDA</Text>
+    <Animated.View style={styles.stack}>
+      {back != null && (
+        <Animated.View style={[styles.card, styles.behind, backStyle]} pointerEvents="none">
+          {back}
         </Animated.View>
-        <Animated.View style={[styles.badge, styles.badgeRight, { backgroundColor: Semantic.danger }, goBadge]}>
-          <Text style={styles.badgeText}>SE VA</Text>
+      )}
+      <GestureDetector gesture={pan}>
+        <Animated.View style={[styles.card, frontStyle]}>
+          {front}
+          <Animated.View style={[styles.badge, styles.badgeLeft, keepBadge]}>
+            <Text style={styles.badgeText}>SE QUEDA</Text>
+          </Animated.View>
+          <Animated.View
+            style={[styles.badge, styles.badgeRight, { backgroundColor: Semantic.danger }, goBadge]}
+          >
+            <Text style={styles.badgeText}>SE VA</Text>
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
-    </GestureDetector>
+      </GestureDetector>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
+  stack: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
   card: {
-    flex: 1,
-    width: '90%',
+    position: 'absolute',
+    width: '92%',
+    height: '100%',
     borderRadius: 28,
     borderWidth: 1,
+    borderColor: Indigo[600],
+    backgroundColor: '#E0E7FF',
     overflow: 'hidden',
     shadowColor: Indigo[600],
     shadowOpacity: 0.2,
@@ -111,6 +121,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
   },
+  behind: {},
   badge: {
     position: 'absolute',
     top: 16,
@@ -123,9 +134,3 @@ const styles = StyleSheet.create({
   badgeRight: { right: 16 },
   badgeText: { color: '#fff', fontWeight: '700', fontSize: 16 },
 });
-
-// Wrapper contenido de la card con esquinas redondeadas.
-export function CardMedia({ children }: { children: ReactNode }) {
-  return <View style={mediaStyles.fill}>{children}</View>;
-}
-const mediaStyles = StyleSheet.create({ fill: { flex: 1 } });

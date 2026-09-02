@@ -27,8 +27,11 @@ function Thumb({
 
   useEffect(() => {
     if (kind !== 'video' || videoThumbCache.has(uri)) return;
+    // Solo generamos miniatura de archivos locales; para videos remotos (demo)
+    // descargaría el video entero, así que mostramos el placeholder con play.
+    if (uri.startsWith('http')) return;
     let alive = true;
-    VideoThumbnails.getThumbnailAsync(uri, { time: 1000, quality: 0.4 })
+    VideoThumbnails.getThumbnailAsync(uri, { time: 1000, quality: 0.3 })
       .then((r) => {
         videoThumbCache.set(uri, r.uri);
         if (alive) setThumb(r.uri);
