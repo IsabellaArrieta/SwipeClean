@@ -115,15 +115,17 @@ export default function SwipeScreen() {
 
         <View style={styles.progressWrap}>
           <Text style={[styles.progressText, { color: colors.primary }]}>
-            Revisaste {reviewed} de {total}
+            {loading ? `Cargando ${label.toLowerCase()}…` : `Revisaste ${reviewed} de ${total}`}
           </Text>
           <View style={[styles.track, { backgroundColor: colors.primary + '1A' }]}>
-            <LinearGradient
-              colors={[Indigo[600], Indigo[400]]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={[styles.fill, { width: `${progress * 100}%` }]}
-            />
+            {!loading && (
+              <LinearGradient
+                colors={[Indigo[600], Indigo[400]]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.fill, { width: `${progress * 100}%` }]}
+              />
+            )}
           </View>
         </View>
 

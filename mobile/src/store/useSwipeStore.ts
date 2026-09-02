@@ -41,7 +41,9 @@ export const useSwipeStore = create<SwipeState>((set, get) => ({
   trashed: new Set(),
 
   load: async (kind, jumpToId, jumpTimeMs) => {
-    set({ loading: true, queue: [], index: 0, history: [], kind });
+    // El store es compartido entre Fotos y Videos: limpiamos los contadores para
+    // no seguir mostrando los del tipo anterior mientras carga el nuevo.
+    set({ loading: true, queue: [], index: 0, history: [], kind, total: 0, reviewed: 0 });
 
     const [total, trashedArr] = await Promise.all([getTotalCount(kind), trashIds()]);
     const trashed = new Set(trashedArr);
