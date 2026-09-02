@@ -27,8 +27,21 @@ export function VideoCard({ uri }: { uri: string }) {
   const scrubbing = useRef(false);
 
   useEffect(() => {
-    if (cachedPoster(uri) === undefined) getPoster(uri).then(setPoster);
-    else setPoster(cachedPoster(uri) ?? null);
+    const cached = cachedPoster(uri);
+    if (cached !== undefined) {
+      setPoster(cached);
+      return;
+    }
+    // Limpiamos primero: si no, se sigue viendo el frame del video anterior
+    // hasta que termine de generarse el nuevo.
+    let alive = true;
+    setPoster(null);
+    getPoster(uri).then((p) => {
+      if (alive) setPoster(p);
+    });
+    return () => {
+      alive = false;
+    };
   }, [uri]);
 
   useEffect(() => {

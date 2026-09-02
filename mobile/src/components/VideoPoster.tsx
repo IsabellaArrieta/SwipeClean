@@ -10,7 +10,19 @@ export function VideoPoster({ uri }: { uri: string }) {
   const [poster, setPoster] = useState<string | null>(() => cachedPoster(uri) ?? null);
 
   useEffect(() => {
-    if (cachedPoster(uri) === undefined) getPoster(uri).then(setPoster);
+    const cached = cachedPoster(uri);
+    if (cached !== undefined) {
+      setPoster(cached);
+      return;
+    }
+    let alive = true;
+    setPoster(null); // evita mostrar el frame del video anterior
+    getPoster(uri).then((p) => {
+      if (alive) setPoster(p);
+    });
+    return () => {
+      alive = false;
+    };
   }, [uri]);
 
   return (
