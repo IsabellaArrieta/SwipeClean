@@ -29,8 +29,8 @@ import { useTrashStore } from '@/store/useTrashStore';
 import { Semantic } from '@/theme/tokens';
 
 const COLS = 3;
-const FIRST_PAGE = 150;
-const BG_PAGE = 1000;
+const FIRST_PAGE = 120;
+const NEXT_PAGE = 120;
 const VIEWABILITY = { itemVisiblePercentThreshold: 10 };
 
 export default function Gallery() {
@@ -52,38 +52,52 @@ export default function Gallery() {
   const [firstVisible, setFirstVisible] = useState(0);
   const listRef = useRef<FlatList<Media>>(null);
   const runId = useRef(0);
+  const cursor = useRef<string | undefined>(undefined);
+  const hasMore = useRef(true);
+  const loadingMore = useRef(false);
+  const trashedRef = useRef<Set<string>>(new Set());
 
   const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const i = viewableItems[0]?.index;
     if (i != null) setFirstVisible(Math.max(0, i));
   }).current;
 
+  const loadNext = useCallback(async () => {
+    if (loadingMore.current || !hasMore.current) return;
+    loadingMore.current = true;
+    const myRun = runId.current;
+    const page = await queryMediaPage(kind, { after: cursor.current, first: NEXT_PAGE });
+    if (myRun !== runId.current) return;
+    cursor.current = page.cursor;
+    hasMore.current = page.hasMore;
+    setItems((prev) => {
+      const seen = new Set(prev.map((m) => m.id));
+      const fresh = page.items.filter((m) => !seen.has(m.id) && !trashedRef.current.has(m.id));
+      return fresh.length ? [...prev, ...fresh] : prev;
+    });
+    loadingMore.current = false;
+  }, [kind]);
+
   const reload = useCallback(async () => {
     const myRun = ++runId.current;
     setLoading(true);
     setItems([]);
     setSelected(new Set());
+    cursor.current = undefined;
+    hasMore.current = true;
+    loadingMore.current = false;
 
     const [count, trashedArr] = await Promise.all([getTotalCount(kind), trashIds()]);
-    const trashed = new Set(trashedArr);
     if (myRun !== runId.current) return;
+    trashedRef.current = new Set(trashedArr);
     setTotal(count);
 
-    // Primera página: se muestra ya.
-    let page = await queryMediaPage(kind, { first: FIRST_PAGE });
+    const page = await queryMediaPage(kind, { first: FIRST_PAGE });
     if (myRun !== runId.current) return;
-    let acc = page.items.filter((m) => !trashed.has(m.id));
-    setItems(acc);
+    cursor.current = page.cursor;
+    hasMore.current = page.hasMore;
+    setItems(page.items.filter((m) => !trashedRef.current.has(m.id)));
     setLoading(false);
-
-    // Resto: en segundo plano, sin bloquear la UI.
-    while (page.hasMore && myRun === runId.current) {
-      await new Promise((r) => setTimeout(r, 0));
-      page = await queryMediaPage(kind, { after: page.cursor, first: BG_PAGE });
-      if (myRun !== runId.current) return;
-      acc = acc.concat(page.items.filter((m) => !trashed.has(m.id)));
-      setItems(acc);
-    }
   }, [kind]);
 
   useEffect(() => {
@@ -93,12 +107,26 @@ export default function Gallery() {
     };
   }, [reload]);
 
-  const toggle = (id: string) =>
+  const toggle = useCallback((id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  }, []);
+
+  const renderItem = useCallback(
+    ({ item }: { item: Media }) => (
+      <Thumb
+        uri={item.uri}
+        kind={item.kind}
+        size={rowH}
+        selected={selected.has(item.id)}
+        onPress={() => toggle(item.id)}
+      />
+    ),
+    [rowH, selected, toggle],
+  );
 
   const onSendToTrash = async () => {
     const rows = items.filter((m) => selected.has(m.id)).map((m) => ({
@@ -135,9 +163,8 @@ export default function Gallery() {
     const target = Math.min(max, Math.max(0, wanted));
     try {
       listRef.current?.scrollToIndex({ index: target, animated: false });
-    } catch {
-      // el fondo aún no cargó hasta ahí; nos quedamos en lo cargado
-    }
+    } catch {}
+    if (wanted > max - 30) loadNext(); // pidiendo cerca del final -> traer más
   };
 
   return (
@@ -212,19 +239,13 @@ export default function Gallery() {
                 } catch {}
               }, 150);
             }}
-            removeClippedSubviews
-            initialNumToRender={21}
-            maxToRenderPerBatch={9}
-            windowSize={5}
-            renderItem={({ item }) => (
-              <Thumb
-                uri={item.uri}
-                kind={item.kind}
-                size={rowH}
-                selected={selected.has(item.id)}
-                onPress={() => toggle(item.id)}
-              />
-            )}
+            onEndReached={loadNext}
+            onEndReachedThreshold={1.5}
+            initialNumToRender={18}
+            maxToRenderPerBatch={6}
+            updateCellsBatchingPeriod={80}
+            windowSize={7}
+            renderItem={renderItem}
           />
           <FastScrollbar
             progress={progress}
