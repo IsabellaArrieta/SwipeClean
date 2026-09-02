@@ -1,0 +1,37 @@
+# Lo que EAS Build NO necesita subir para compilar la app de mobile/.
+# (Cuando existe .easignore, EAS lo usa en vez de .gitignore para el archivo.)
+
+# --- Proyecto Android original (solo referencia, no se compila en EAS) ---
+/app
+/build
+/.gradle
+/.idea
+/gradle
+/gradlew
+/gradlew.bat
+/build.gradle.kts
+/settings.gradle.kts
+/gradle.properties
+/local.properties
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# --- Dependencias e intermedios (EAS los regenera) ---
+node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+mobile/ios/
+mobile/android/
+mobile/.metro-health-check*
+**/*.tsbuildinfo
+
+# --- Memoria / notas locales, no van al build ---
+memory/
+.claude/
+
+# --- Varios ---
+.DS_Store
+*.log
