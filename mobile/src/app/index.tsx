@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/theme/ThemeContext';
 import { Indigo, Semantic, radius } from '@/theme/tokens';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { Glass } from '@/components/Glass';
 import { useTrashStore } from '@/store/useTrashStore';
 
 export default function Home() {
@@ -65,11 +66,11 @@ export default function Home() {
           />
         </ScrollView>
 
-        <View style={[styles.tabBar, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+        <Glass style={styles.tabBar} radius={30} intensity={75}>
           <Tab icon="home" label="Inicio" active />
           <Tab icon="bar-chart" label="Estadísticas" onPress={() => router.push('/stats')} />
           <Tab icon="heart" label="Info" onPress={() => router.push('/info')} />
-        </View>
+        </Glass>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -138,7 +139,7 @@ function Tab({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: { paddingHorizontal: 24, paddingVertical: 16, gap: 14 },
+  content: { paddingHorizontal: 24, paddingVertical: 16, paddingBottom: 108, gap: 14 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 2 },
   brand: { fontSize: 32, fontWeight: '800' },
   sub: { fontSize: 14, marginTop: 2 },
@@ -168,11 +169,18 @@ const styles = StyleSheet.create({
   cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardFooterText: { fontSize: 13 },
   cardArrow: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  // Burbuja flotante en vez de barra pegada al borde.
   tabBar: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    bottom: 16,
     flexDirection: 'row',
-    borderTopWidth: 1,
-    paddingVertical: 8,
-    paddingBottom: 12,
+    paddingVertical: 12,
+    shadowColor: Indigo[600],
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
   },
   tab: { flex: 1, alignItems: 'center', gap: 2 },
   tabLabel: { fontSize: 11 },

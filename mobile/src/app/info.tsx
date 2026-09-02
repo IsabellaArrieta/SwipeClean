@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Header } from '@/components/ui';
+import { Glass } from '@/components/Glass';
 import { BeatingHeart } from '@/components/BeatingHeart';
 import { useTheme } from '@/theme/ThemeContext';
 import { getCheckpoint } from '@/lib/storage';
@@ -25,12 +26,8 @@ export default function Info() {
     );
   }, []);
 
-  // Cristal rosa: capas translúcidas + un borde superior más claro que simula
-  // el brillo del vidrio. Sin `elevation`: en Android la sombra se vería a
-  // través del fondo translúcido y aparecía un recuadro raro en el centro.
-  const glassBg: [string, string, string] = isDark
-    ? ['rgba(255,205,212,0.20)', 'rgba(241,136,155,0.12)', 'rgba(229,125,144,0.06)']
-    : ['rgba(255,255,255,0.72)', 'rgba(255,205,212,0.66)', 'rgba(253,180,191,0.52)'];
+  // Velo rosa sobre el desenfoque real del fondo.
+  const veil = isDark ? 'rgba(241,136,155,0.18)' : 'rgba(253,180,191,0.42)';
   const glassBorder = isDark ? 'rgba(255,205,212,0.28)' : 'rgba(255,255,255,0.9)';
   const rose = isDark ? Rose[400] : Rose[800];
   const roseSoft = isDark ? 'rgba(255,205,212,0.72)' : 'rgba(229,125,144,0.85)';
@@ -47,12 +44,7 @@ export default function Info() {
             {/* Halo difuso detrás del cristal */}
             <View style={[styles.halo, { backgroundColor: Rose[600], opacity: isDark ? 0.22 : 0.3 }]} />
 
-            <LinearGradient
-              colors={glassBg}
-              start={{ x: 0.1, y: 0 }}
-              end={{ x: 0.9, y: 1 }}
-              style={[styles.glass, { borderColor: glassBorder }]}
-            >
+            <Glass style={styles.glass} tintColor={veil} borderColor={glassBorder} intensity={70}>
               <View style={styles.madeRow}>
                 <Text style={[styles.made, { color: rose }]}>Made with</Text>
                 <BeatingHeart size={18} color={Rose[700]} />
@@ -82,7 +74,7 @@ export default function Info() {
                     : `Llevas ${stats.photos} fotos y ${stats.videos} videos revisados`}
                 </Text>
               </View>
-            </LinearGradient>
+            </Glass>
           </View>
 
           <Pressable
@@ -127,13 +119,7 @@ const styles = StyleSheet.create({
     bottom: 2,
     borderRadius: 40,
   },
-  glass: {
-    borderRadius: 28,
-    borderWidth: 1,
-    padding: 22,
-    gap: 10,
-    overflow: 'hidden',
-  },
+  glass: { padding: 22, gap: 10 },
   madeRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   made: { fontSize: 20, fontWeight: '800' },
   role: { fontSize: 13, lineHeight: 18 },
