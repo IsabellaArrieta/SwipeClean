@@ -27,3 +27,26 @@ export async function saveCheckpoint(kind: MediaKind, cp: Checkpoint): Promise<v
 export async function clearCheckpoint(kind: MediaKind): Promise<void> {
   await AsyncStorage.removeItem(key(kind));
 }
+
+// Ancla de la galería: por qué elemento ibas navegando. Guardamos id + fecha
+// para reencontrar su posición exacta aunque hayan entrado fotos nuevas.
+export type Anchor = { id: string; time: number };
+const anchorKey = (kind: MediaKind) => `gallery_anchor_${kind}`;
+
+export async function getGalleryAnchor(kind: MediaKind): Promise<Anchor | null> {
+  const raw = await AsyncStorage.getItem(anchorKey(kind));
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as Anchor;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveGalleryAnchor(kind: MediaKind, a: Anchor): Promise<void> {
+  await AsyncStorage.setItem(anchorKey(kind), JSON.stringify(a));
+}
+
+export async function clearGalleryAnchor(kind: MediaKind): Promise<void> {
+  await AsyncStorage.removeItem(anchorKey(kind));
+}

@@ -9,6 +9,7 @@ import Thumb from '@/components/Thumb';
 import { FastScrollbar } from '@/components/FastScrollbar';
 import { useTheme } from '@/theme/ThemeContext';
 import {
+  countBefore,
   getTotalCount,
   isDemoMode,
   queryMediaPage,
@@ -17,13 +18,19 @@ import {
   type MediaKind,
 } from '@/lib/media';
 import { trashIds } from '@/lib/db';
-import { clearCheckpoint } from '@/lib/storage';
+import {
+  clearCheckpoint,
+  clearGalleryAnchor,
+  getGalleryAnchor,
+  saveGalleryAnchor,
+} from '@/lib/storage';
 import { useTrashStore } from '@/store/useTrashStore';
 import { Semantic } from '@/theme/tokens';
 
 const COLS = 3;
 const FIRST_PAGE = 120;
 const NEXT_PAGE = 120;
+const ANCHOR_CAP = 6000; // máximo de items a cargar de golpe para reencontrar tu posición
 
 export default function Gallery() {
   const params = useLocalSearchParams<{ type: MediaKind }>();
@@ -42,19 +49,30 @@ export default function Gallery() {
   const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [firstVisible, setFirstVisible] = useState(0);
+  const [initialIndex, setInitialIndex] = useState(0);
   const listRef = useRef<FlashListRef<Media>>(null);
   const runId = useRef(0);
   const cursor = useRef<string | undefined>(undefined);
   const hasMore = useRef(true);
   const loadingMore = useRef(false);
   const trashedRef = useRef<Set<string>>(new Set());
+  const itemsRef = useRef<Media[]>([]);
+  const anchorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  itemsRef.current = items;
 
   const onScroll = useCallback(
     (e: { nativeEvent: { contentOffset: { y: number } } }) => {
       const row = Math.floor(Math.max(0, e.nativeEvent.contentOffset.y - 4) / rowH);
-      setFirstVisible(row * COLS);
+      const idx = row * COLS;
+      setFirstVisible(idx);
+      // guarda por qué elemento vas (con debounce), para retomar al reabrir
+      if (anchorTimer.current) clearTimeout(anchorTimer.current);
+      anchorTimer.current = setTimeout(() => {
+        const m = itemsRef.current[idx];
+        if (m) saveGalleryAnchor(kind, { id: m.id, time: m.timeMs });
+      }, 400);
     },
-    [rowH],
+    [rowH, kind],
   );
 
   const loadNext = useCallback(async () => {
@@ -78,20 +96,38 @@ export default function Gallery() {
     setLoading(true);
     setItems([]);
     setSelected(new Set());
+    setInitialIndex(0);
     cursor.current = undefined;
     hasMore.current = true;
     loadingMore.current = false;
 
-    const [count, trashedArr] = await Promise.all([getTotalCount(kind), trashIds()]);
+    const [count, trashedArr, anchor] = await Promise.all([
+      getTotalCount(kind),
+      trashIds(),
+      getGalleryAnchor(kind),
+    ]);
     if (myRun !== runId.current) return;
     trashedRef.current = new Set(trashedArr);
     setTotal(count);
 
-    const page = await queryMediaPage(kind, { first: FIRST_PAGE });
+    // Si hay ancla, cargamos desde arriba hasta pasarla y arrancamos ahí.
+    let firstCount = FIRST_PAGE;
+    let startIdx = 0;
+    if (anchor) {
+      const newer = Math.max(0, count - (await countBefore(kind, anchor.time + 1)));
+      if (myRun !== runId.current) return;
+      startIdx = Math.min(newer, ANCHOR_CAP);
+      firstCount = Math.min(ANCHOR_CAP, startIdx + FIRST_PAGE);
+    }
+
+    const page = await queryMediaPage(kind, { first: firstCount });
     if (myRun !== runId.current) return;
     cursor.current = page.cursor;
     hasMore.current = page.hasMore;
-    setItems(page.items.filter((m) => !trashedRef.current.has(m.id)));
+    const list = page.items.filter((m) => !trashedRef.current.has(m.id));
+    setItems(list);
+    setInitialIndex(Math.min(startIdx, Math.max(0, list.length - 1)));
+    setFirstVisible(Math.min(startIdx, Math.max(0, list.length - 1)));
     setLoading(false);
   }, [kind]);
 
@@ -99,6 +135,7 @@ export default function Gallery() {
     reload();
     return () => {
       runId.current++;
+      if (anchorTimer.current) clearTimeout(anchorTimer.current);
     };
   }, [reload]);
 
@@ -146,7 +183,7 @@ export default function Gallery() {
   };
 
   const onReset = async () => {
-    await clearCheckpoint(kind);
+    await Promise.all([clearCheckpoint(kind), clearGalleryAnchor(kind)]);
     router.dismissAll();
   };
 
@@ -220,6 +257,7 @@ export default function Gallery() {
             keyExtractor={(m) => m.id}
             numColumns={COLS}
             contentContainerStyle={{ padding: 4 }}
+            initialScrollIndex={initialIndex}
             onScroll={onScroll}
             scrollEventThrottle={32}
             onEndReached={loadNext}

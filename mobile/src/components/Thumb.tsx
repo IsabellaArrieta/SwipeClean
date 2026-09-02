@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Semantic, radius } from '@/theme/tokens';
 import type { MediaKind } from '@/lib/media';
-import { cachedPoster, getPoster } from '@/lib/videoThumb';
+import { cachedPoster, getPoster, invalidatePoster } from '@/lib/videoThumb';
 
 function Thumb({
   uri,
@@ -54,6 +54,14 @@ function Thumb({
             priority="low"
             transition={120}
             recyclingKey={uri}
+            onError={
+              kind === 'video'
+                ? () => {
+                    invalidatePoster(uri);
+                    getPoster(uri).then(setThumb);
+                  }
+                : undefined
+            }
           />
         ) : (
           <View style={styles.placeholder}>

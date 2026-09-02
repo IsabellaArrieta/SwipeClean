@@ -8,12 +8,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { cachedPoster, getPoster } from '@/lib/videoThumb';
 
 // Player de video con slider y toggle de sonido. Portado de ui/components/VideoPlayerCard.kt.
+// El player se crea UNA vez y se le cambia la fuente con replaceAsync — así no se
+// libera/recrea entre videos (eso causaba "shared object already released").
 export function VideoCard({ uri }: { uri: string }) {
-  const player = useVideoPlayer(uri, (p) => {
+  const player = useVideoPlayer(null, (p) => {
     p.loop = true;
     p.muted = true;
     p.bufferOptions = { minBufferForPlayback: 0.5, preferredForwardBufferDuration: 5 };
-    p.play();
   });
 
   const [playing, setPlaying] = useState(true);
@@ -27,7 +28,26 @@ export function VideoCard({ uri }: { uri: string }) {
 
   useEffect(() => {
     if (cachedPoster(uri) === undefined) getPoster(uri).then(setPoster);
+    else setPoster(cachedPoster(uri) ?? null);
   }, [uri]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setStarted(false);
+    setBuffering(true);
+    setPos(0);
+    setDur(0);
+    setPlaying(true);
+    player.replaceAsync({ uri }).then(
+      () => {
+        if (!cancelled) player.play();
+      },
+      () => {},
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [uri, player]);
 
   useEffect(() => {
     const id = setInterval(() => {
