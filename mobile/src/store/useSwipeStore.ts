@@ -51,10 +51,16 @@ export const useSwipeStore = create<SwipeState>((set, get) => ({
     let before: number | undefined;
     let reviewed = 0;
 
-    const cp = jumpTimeMs ? { time: jumpTimeMs + 1 } : await getCheckpoint(kind);
-    if (cp) {
-      before = cp.time;
+    if (jumpTimeMs) {
+      // Saltaste a un punto de la galería: ahí sí calculamos la posición.
+      before = jumpTimeMs + 1;
       reviewed = Math.max(0, total - (await countBefore(kind, before)));
+    } else {
+      const cp = await getCheckpoint(kind);
+      if (cp) {
+        before = cp.time;
+        reviewed = cp.count ?? 0;
+      }
     }
 
     const page = await queryMediaPage(kind, { before, first: PAGE });
@@ -98,11 +104,12 @@ export const useSwipeStore = create<SwipeState>((set, get) => ({
     const { queue, index } = get();
     const item = queue[index];
     if (!item) return;
-    saveCheckpoint(item.kind, { id: item.id, time: item.timeMs });
+    const reviewed = get().reviewed + 1;
+    saveCheckpoint(item.kind, { id: item.id, time: item.timeMs, count: reviewed });
     set((s) => ({
       history: [...s.history, { item, kind: 'kept' }],
       index: s.index + 1,
-      reviewed: s.reviewed + 1,
+      reviewed,
     }));
     get().loadMore();
   },
@@ -119,28 +126,37 @@ export const useSwipeStore = create<SwipeState>((set, get) => ({
       dateAdded: Math.round(item.timeMs / 1000),
       trashedAt: Date.now(),
     });
-    saveCheckpoint(item.kind, { id: item.id, time: item.timeMs });
+    const reviewed = get().reviewed + 1;
+    saveCheckpoint(item.kind, { id: item.id, time: item.timeMs, count: reviewed });
     set((s) => ({
       history: [...s.history, { item, kind: 'trashed' }],
       index: s.index + 1,
-      reviewed: s.reviewed + 1,
+      reviewed,
       trashed: new Set(s.trashed).add(item.id),
     }));
     get().loadMore();
   },
 
   undo: () => {
-    const { history } = get();
+    const { history, queue, index, reviewed } = get();
     if (history.length === 0) return;
     const last = history[history.length - 1];
     if (last.kind === 'trashed') trashRemove([last.item.id]);
+
+    const newIndex = Math.max(0, index - 1);
+    const newReviewed = Math.max(0, reviewed - 1);
+    // Retrocede también el checkpoint guardado, si no al reabrir la app
+    // el contador quedaría uno adelante.
+    const prev = queue[newIndex - 1];
+    if (prev) saveCheckpoint(prev.kind, { id: prev.id, time: prev.timeMs, count: newReviewed });
+
     set((s) => {
       const trashed = new Set(s.trashed);
       trashed.delete(last.item.id);
       return {
         history: s.history.slice(0, -1),
-        index: Math.max(0, s.index - 1),
-        reviewed: Math.max(0, s.reviewed - 1),
+        index: newIndex,
+        reviewed: newReviewed,
         trashed,
       };
     });

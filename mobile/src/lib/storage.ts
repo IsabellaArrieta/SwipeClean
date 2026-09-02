@@ -6,7 +6,10 @@ import type { MediaKind } from './media';
 // la revisión donde la dejaste. Guardamos id + fecha (ms) para poder pedir
 // directamente "lo más nuevo que sigue sin revisar" sin recorrer todo.
 
-export type Checkpoint = { id: string; time: number };
+// `count` = cuántos llevas revisados de ese tipo. Se guarda tal cual en vez de
+// deducirlo de las fechas: en Android el orden por creationTime no siempre
+// coincide con la fecha que devuelve cada asset y el número salía disparado.
+export type Checkpoint = { id: string; time: number; count: number };
 
 const key = (kind: MediaKind) => `checkpoint_${kind}`;
 
