@@ -165,6 +165,15 @@ export default function SwipeScreen() {
           )}
         </View>
 
+        {!loading && !done && !waitingMore && current && (
+          <View style={[styles.dateChip, { backgroundColor: colors.primary + '14' }]}>
+            <Ionicons name="calendar-outline" size={13} color={colors.onSurfaceVariant} />
+            <Text style={[styles.dateText, { color: colors.onSurfaceVariant }]}>
+              {formatDate(current.timeMs)}
+            </Text>
+          </View>
+        )}
+
         {!loading && !done && !waitingMore && (
           <View style={styles.actions}>
             <PillButton
@@ -184,6 +193,30 @@ export default function SwipeScreen() {
       </SafeAreaView>
     </LinearGradient>
   );
+}
+
+const MESES = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
+];
+
+// "12 de marzo de 2024 · 14:32" (sin Intl, que no siempre está en Hermes).
+function formatDate(ms: number) {
+  if (!ms) return 'Sin fecha';
+  const d = new Date(ms);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()} · ${hh}:${mm}`;
 }
 
 const styles = StyleSheet.create({
@@ -207,6 +240,17 @@ const styles = StyleSheet.create({
   cardArea: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 16 },
   media: { flex: 1, width: '100%' },
   blurBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  dateChip: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    marginBottom: 12,
+  },
+  dateText: { fontSize: 12, fontWeight: '600' },
   actions: { flexDirection: 'row', gap: 14, paddingHorizontal: 24, paddingBottom: 16 },
   actionBtn: { flex: 1, height: 52, borderRadius: radius.xl },
 });
