@@ -32,8 +32,9 @@ export function ThemeToggle({ size = 24 }: { size?: number }) {
   };
 
   const wrap = useAnimatedStyle(() => ({
+    // Gira media vuelta hacia cada lado pero termina recto (0° o 360°).
     transform: [
-      { rotate: `${interpolate(p.value, [0, 1], [0, 180])}deg` },
+      { rotate: `${interpolate(p.value, [0, 0.5, 1], [0, 180, 360])}deg` },
       { scale: scale.value },
     ],
   }));

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
-import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -8,7 +12,7 @@ import { CircleIconButton, PillButton } from '@/components/ui';
 import Thumb from '@/components/Thumb';
 import { FastScrollbar } from '@/components/FastScrollbar';
 import { useTheme } from '@/theme/ThemeContext';
-import { queryMedia, isDemoMode, type Media, type MediaKind } from '@/lib/media';
+import { queryMedia, isDemoMode, requestOrOpenSettings, type Media, type MediaKind } from '@/lib/media';
 import { trashIds } from '@/lib/db';
 import { clearCheckpoint, getCheckpoint } from '@/lib/storage';
 import { useTrashStore } from '@/store/useTrashStore';
@@ -39,6 +43,10 @@ export default function Gallery() {
   const onScroll = useAnimatedScrollHandler((e) => {
     scrollY.value = e.contentOffset.y;
   });
+
+  const barStyle = useAnimatedStyle(() => ({
+    width: `${maxScroll > 0 ? Math.min(1, Math.max(0, scrollY.value / maxScroll)) * 100 : 0}%`,
+  }));
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -99,9 +107,22 @@ export default function Gallery() {
       </View>
 
       {!loading && isDemoMode() && (
-        <Text style={[styles.demo, { color: Semantic.amber }]}>
-          Modo demo — sin acceso a tu galería
+        <Text
+          style={[styles.demo, { color: Semantic.amber }]}
+          onPress={() => {
+            requestOrOpenSettings().then((granted) => {
+              if (granted) reload();
+            });
+          }}
+        >
+          Modo demo — toca para dar acceso a tu galería
         </Text>
+      )}
+
+      {!loading && items.length > 0 && (
+        <View style={[styles.scrollTrack, { backgroundColor: colors.primary + '1A' }]}>
+          <Animated.View style={[styles.scrollFill, { backgroundColor: colors.primary }, barStyle]} />
+        </View>
       )}
 
       {loading ? (
@@ -172,6 +193,8 @@ const styles = StyleSheet.create({
   title: { flex: 1, fontSize: 18, fontWeight: '600' },
   link: { fontSize: 13, fontWeight: '600' },
   demo: { fontSize: 12, textAlign: 'center', paddingBottom: 6, fontWeight: '600' },
+  scrollTrack: { height: 3, marginHorizontal: 16, marginBottom: 4, borderRadius: 2, overflow: 'hidden' },
+  scrollFill: { height: 3, borderRadius: 2 },
   footer: { borderTopWidth: 1, padding: 12, gap: 8 },
   rowGap: { flexDirection: 'row', gap: 8 },
   grow: { flex: 1 },

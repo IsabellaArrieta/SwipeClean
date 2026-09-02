@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { CircleIconButton, PillButton } from '@/components/ui';
 import { SwipeCard } from '@/components/SwipeCard';
 import { VideoCard } from '@/components/VideoCard';
 import { useTheme } from '@/theme/ThemeContext';
 import { Indigo, Semantic, radius } from '@/theme/tokens';
-import { ensurePermission, isDemoMode, type MediaKind } from '@/lib/media';
+import { ensurePermission, isDemoMode, requestOrOpenSettings, type MediaKind } from '@/lib/media';
 import { useSwipeStore } from '@/store/useSwipeStore';
 
 export default function SwipeScreen() {
@@ -24,13 +25,15 @@ export default function SwipeScreen() {
   const { loading, queue, index, total, reviewed, history, load, swipeLeft, swipeRight, undo } =
     useSwipeStore();
 
+  const reload = useCallback(() => load(kind, params.jump ?? null), [load, kind, params.jump]);
+
   useEffect(() => {
     ensurePermission().finally(() => setReady(true));
   }, []);
 
   useEffect(() => {
-    if (ready) load(kind, params.jump ?? null);
-  }, [ready, kind, params.jump, load]);
+    if (ready) reload();
+  }, [ready, reload]);
 
   const onBack = useCallback(() => router.back(), [router]);
 
@@ -51,17 +54,24 @@ export default function SwipeScreen() {
         <View style={styles.header}>
           <CircleIconButton name="arrow-back" onPress={onBack} />
           <Text style={[styles.title, { color: colors.onSurface }]}>{label}</Text>
-          <CircleIconButton
-            name="images-outline"
-            onPress={() => router.push(`/gallery/${kind}`)}
-          />
+          <CircleIconButton name="images-outline" onPress={() => router.push(`/gallery/${kind}`)} />
           <CircleIconButton name="arrow-undo" onPress={undo} disabled={history.length === 0} />
         </View>
 
         {!loading && isDemoMode() && (
-          <Text style={[styles.demo, { color: Semantic.amber }]}>
-            Modo demo — sin acceso a tu galería (usa el APK para tus fotos reales)
-          </Text>
+          <Pressable
+            style={styles.demo}
+            onPress={() => {
+              requestOrOpenSettings().then((granted) => {
+                if (granted) reload();
+              });
+            }}
+          >
+            <Ionicons name="images-outline" size={14} color={Semantic.amber} />
+            <Text style={[styles.demoText, { color: Semantic.amber }]}>
+              Modo demo — toca para dar acceso a tu galería
+            </Text>
+          </Pressable>
         )}
 
         <View style={styles.progressWrap}>
@@ -97,8 +107,7 @@ export default function SwipeScreen() {
                   style={styles.media}
                   contentFit="contain"
                   cachePolicy="memory-disk"
-                  transition={150}
-                  recyclingKey={current.id}
+                  transition={0}
                 />
               )}
             </SwipeCard>
@@ -107,18 +116,8 @@ export default function SwipeScreen() {
 
         {!loading && !done && (
           <View style={styles.actions}>
-            <PillButton
-              label="✕  A papelera"
-              variant="danger"
-              onPress={swipeLeft}
-              style={styles.actionBtn}
-            />
-            <PillButton
-              label="✓  Se queda"
-              variant="primary"
-              onPress={swipeRight}
-              style={styles.actionBtn}
-            />
+            <PillButton label="✕  A papelera" variant="danger" onPress={swipeLeft} style={styles.actionBtn} />
+            <PillButton label="✓  Se queda" variant="primary" onPress={swipeRight} style={styles.actionBtn} />
           </View>
         )}
       </SafeAreaView>
@@ -131,7 +130,15 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center', padding: 24 },
   header: { height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 8 },
   title: { flex: 1, fontSize: 18, fontWeight: '600' },
-  demo: { fontSize: 12, textAlign: 'center', paddingHorizontal: 20, paddingTop: 8, fontWeight: '600' },
+  demo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+  },
+  demoText: { fontSize: 12, fontWeight: '600' },
   progressWrap: { paddingHorizontal: 20, paddingVertical: 12, gap: 10 },
   progressText: { fontSize: 13, fontWeight: '700' },
   track: { height: 4, borderRadius: radius.pill, overflow: 'hidden' },

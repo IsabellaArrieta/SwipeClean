@@ -9,11 +9,8 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
-import { useTheme } from '@/theme/ThemeContext';
-
-const THUMB = 56;
-
-// Barra de desplazamiento rápida con burbuja de contador (portado del FastScrollBar de Compose).
+// Franja invisible en el borde derecho para desplazamiento rápido, con burbuja
+// que muestra el número de elemento (portado del FastScrollBar de Compose).
 export function FastScrollbar({
   count,
   columns,
@@ -29,52 +26,43 @@ export function FastScrollbar({
   trackHeight: number;
   onScrollToOffset: (offset: number) => void;
 }) {
-  const { colors } = useTheme();
   const [dragging, setDragging] = useState(false);
   const [label, setLabel] = useState('1');
   const y = useSharedValue(0);
-  const range = Math.max(1, trackHeight - THUMB);
 
-  // Mueve el thumb según el scroll real de la lista.
   useAnimatedReaction(
-    () => (maxScroll > 0 ? scrollY.value / maxScroll : 0),
+    () => (maxScroll > 0 ? Math.min(1, Math.max(0, scrollY.value / maxScroll)) : 0),
     (frac) => {
-      if (!dragging) y.value = Math.min(1, Math.max(0, frac)) * range;
+      if (!dragging) y.value = frac * trackHeight;
     },
-    [range, maxScroll, dragging],
+    [trackHeight, maxScroll, dragging],
   );
 
-  const setFromFraction = (frac: number) => {
-    const f = Math.min(1, Math.max(0, frac));
+  const scrub = (py: number) => {
+    const f = Math.min(1, Math.max(0, py / trackHeight));
     onScrollToOffset(f * maxScroll);
-    const approx = Math.min(count, Math.round(f * (count - 1)) + 1);
-    setLabel(`${approx}`);
+    setLabel(`${Math.min(count, Math.round(f * (count - 1)) + 1)}`);
   };
 
   const pan = Gesture.Pan()
     .onBegin((e) => {
       runOnJS(setDragging)(true);
-      y.value = Math.min(range, Math.max(0, e.y - THUMB / 2));
-      runOnJS(setFromFraction)(y.value / range);
+      y.value = e.y;
+      runOnJS(scrub)(e.y);
     })
     .onUpdate((e) => {
-      y.value = Math.min(range, Math.max(0, e.y - THUMB / 2));
-      runOnJS(setFromFraction)(y.value / range);
+      y.value = Math.min(trackHeight, Math.max(0, e.y));
+      runOnJS(scrub)(e.y);
     })
     .onFinalize(() => runOnJS(setDragging)(false));
 
-  const thumbStyle = useAnimatedStyle(() => ({ transform: [{ translateY: y.value }] }));
-  const bubbleStyle = useAnimatedStyle(() => ({ transform: [{ translateY: y.value }] }));
+  const bubbleStyle = useAnimatedStyle(() => ({ transform: [{ translateY: y.value - 16 }] }));
 
-  if (count <= columns * 4) return null; // lista corta: no hace falta
+  if (count <= columns * 6) return null;
 
   return (
     <GestureDetector gesture={pan}>
       <View style={styles.hit}>
-        <View style={[styles.track, { backgroundColor: colors.primary + '22' }]} />
-        <Animated.View
-          style={[styles.thumb, { backgroundColor: colors.primary }, thumbStyle]}
-        />
         {dragging && (
           <Animated.View style={[styles.bubble, bubbleStyle]}>
             <Text style={styles.bubbleText}>
@@ -88,13 +76,11 @@ export function FastScrollbar({
 }
 
 const styles = StyleSheet.create({
-  hit: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 28, alignItems: 'center' },
-  track: { position: 'absolute', top: 0, bottom: 0, width: 3, borderRadius: 2 },
-  thumb: { position: 'absolute', top: 0, width: 5, height: THUMB, borderRadius: 3 },
+  hit: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 32 },
   bubble: {
     position: 'absolute',
-    right: 24,
-    top: 8,
+    right: 28,
+    top: 0,
     backgroundColor: 'rgba(0,0,0,0.8)',
     paddingHorizontal: 10,
     paddingVertical: 5,

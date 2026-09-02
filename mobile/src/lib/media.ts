@@ -1,3 +1,4 @@
+import { Linking } from 'react-native';
 import * as MediaLibrary from 'expo-media-library';
 
 export type MediaKind = 'photo' | 'video';
@@ -32,10 +33,15 @@ function demoMedia(kind: MediaKind): Media[] {
       dateAdded: Math.round(Date.now() / 1000) - i * 3600,
     }));
   }
-  const vids = ['BigBuckBunny', 'ElephantsDream', 'ForBiggerBlazes', 'ForBiggerFun', 'ForBiggerJoyrides'];
-  return vids.map((v, i) => ({
+  const vids = [
+    'https://media.w3.org/2010/05/sintel/trailer.mp4',
+    'https://media.w3.org/2010/05/bunny/trailer.mp4',
+    'https://media.w3.org/2010/05/bunny/movie.mp4',
+    'https://media.w3.org/2010/05/video/movie_300.mp4',
+  ];
+  return vids.map((uri, i) => ({
     id: `${DEMO_PREFIX}v${i}`,
-    uri: `https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/${v}.mp4`,
+    uri,
     kind,
     name: `video_demo_${i + 1}.mp4`,
     dateAdded: Math.round(Date.now() / 1000) - i * 3600,
@@ -100,19 +106,36 @@ export async function deleteAssets(ids: string[]): Promise<boolean> {
 // hace fallar getPermissionsAsync en Expo Go porque no declara AUDIO en el manifest.
 const GRANULAR = ['photo', 'video'] as const;
 
+const ok = (r: MediaLibrary.PermissionResponse) =>
+  r.granted || r.accessPrivileges === 'limited';
+
+// Pide el permiso (muestra el diálogo del sistema si se puede). No bloquea:
+// si lo deniegan, la app sigue en modo demo.
 export async function ensurePermission(): Promise<boolean> {
-  const ok = (r: MediaLibrary.PermissionResponse) =>
-    r.granted || r.accessPrivileges === 'limited';
   try {
     const current = await MediaLibrary.getPermissionsAsync(false, [...GRANULAR]);
     if (ok(current)) return true;
-    if (!current.canAskAgain) return true; // dejamos pasar → cae en modo demo
+    if (!current.canAskAgain) return false;
     return ok(await MediaLibrary.requestPermissionsAsync(false, [...GRANULAR]));
   } catch {
     try {
       return ok(await MediaLibrary.requestPermissionsAsync(false, [...GRANULAR]));
     } catch {
-      return true; // sin módulo nativo → modo demo
+      return false;
     }
+  }
+}
+
+// Segundo intento desde el banner "Modo demo": pide de nuevo y, si ya no se
+// puede preguntar, abre los ajustes del sistema para dar el permiso a mano.
+export async function requestOrOpenSettings(): Promise<boolean> {
+  try {
+    const res = await MediaLibrary.requestPermissionsAsync(false, [...GRANULAR]);
+    if (ok(res)) return true;
+    if (!res.canAskAgain) await Linking.openSettings();
+    return false;
+  } catch {
+    await Linking.openSettings();
+    return false;
   }
 }
