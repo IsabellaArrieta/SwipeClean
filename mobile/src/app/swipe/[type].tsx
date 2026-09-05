@@ -97,7 +97,7 @@ export default function SwipeScreen() {
     );
 
   return (
-    <LinearGradient colors={[colors.background, colors.surface]} style={styles.flex}>
+    <View style={styles.flex}>
       <SafeAreaView style={styles.flex}>
         <View style={styles.header}>
           <CircleIconButton name="arrow-back" onPress={onBack} />
@@ -191,7 +191,7 @@ export default function SwipeScreen() {
           </View>
         )}
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
 

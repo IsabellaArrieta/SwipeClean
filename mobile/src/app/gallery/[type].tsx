@@ -9,7 +9,6 @@ import Thumb from '@/components/Thumb';
 import { FastScrollbar } from '@/components/FastScrollbar';
 import { useTheme } from '@/theme/ThemeContext';
 import {
-  countBefore,
   getTotalCount,
   isDemoMode,
   queryMediaPage,
@@ -18,12 +17,7 @@ import {
   type MediaKind,
 } from '@/lib/media';
 import { trashIds } from '@/lib/db';
-import {
-  clearCheckpoint,
-  clearGalleryAnchor,
-  getGalleryAnchor,
-  saveGalleryAnchor,
-} from '@/lib/storage';
+import { clearCheckpoint, getCheckpoint } from '@/lib/storage';
 import { useTrashStore } from '@/store/useTrashStore';
 import { useSwipeStore } from '@/store/useSwipeStore';
 import { Semantic } from '@/theme/tokens';
@@ -31,7 +25,9 @@ import { Semantic } from '@/theme/tokens';
 const COLS = 3;
 const FIRST_PAGE = 120;
 const NEXT_PAGE = 120;
-const ANCHOR_CAP = 6000; // máximo de items a cargar de golpe para reencontrar tu posición
+// Máximo de items a cargar de golpe para poder saltar a donde va la revisión.
+// Tiene que superar lo que llevas revisado o la galería abriría más arriba.
+const START_CAP = 15000;
 
 export default function Gallery() {
   const params = useLocalSearchParams<{ type: MediaKind }>();
@@ -58,7 +54,6 @@ export default function Gallery() {
   const loadingMore = useRef(false);
   const trashedRef = useRef<Set<string>>(new Set());
   const itemsRef = useRef<Media[]>([]);
-  const anchorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   itemsRef.current = items;
 
   // Posición medida contra el alto real del contenido (no contra una altura de
@@ -77,14 +72,8 @@ export default function Gallery() {
       const n = itemsRef.current.length;
       const idx = n > 0 ? Math.min(n - 1, Math.round(frac * (n - 1))) : 0;
       setFirstVisible(idx);
-      // guarda por qué elemento vas (con debounce), para retomar al reabrir
-      if (anchorTimer.current) clearTimeout(anchorTimer.current);
-      anchorTimer.current = setTimeout(() => {
-        const m = itemsRef.current[idx];
-        if (m) saveGalleryAnchor(kind, { id: m.id, time: m.timeMs });
-      }, 400);
     },
-    [rowH, kind],
+    [],
   );
 
   const loadNext = useCallback(async () => {
@@ -113,24 +102,20 @@ export default function Gallery() {
     hasMore.current = true;
     loadingMore.current = false;
 
-    const [count, trashedArr, anchor] = await Promise.all([
+    const [count, trashedArr, cp] = await Promise.all([
       getTotalCount(kind),
       trashIds(),
-      getGalleryAnchor(kind),
+      getCheckpoint(kind),
     ]);
     if (myRun !== runId.current) return;
     trashedRef.current = new Set(trashedArr);
     setTotal(count);
 
-    // Si hay ancla, cargamos desde arriba hasta pasarla y arrancamos ahí.
-    let firstCount = FIRST_PAGE;
-    let startIdx = 0;
-    if (anchor) {
-      const newer = Math.max(0, count - (await countBefore(kind, anchor.time + 1)));
-      if (myRun !== runId.current) return;
-      startIdx = Math.min(newer, ANCHOR_CAP);
-      firstCount = Math.min(ANCHOR_CAP, startIdx + FIRST_PAGE);
-    }
+    // Arrancamos donde va la revisión: los revisados son justo los que están
+    // por encima en el orden (más nuevo primero), así que su cantidad es el
+    // índice del elemento que estás revisando ahora.
+    const startIdx = Math.min(cp?.count ?? 0, START_CAP);
+    const firstCount = Math.min(START_CAP, startIdx + FIRST_PAGE);
 
     const page = await queryMediaPage(kind, { first: firstCount });
     if (myRun !== runId.current) return;
@@ -147,7 +132,6 @@ export default function Gallery() {
     reload();
     return () => {
       runId.current++;
-      if (anchorTimer.current) clearTimeout(anchorTimer.current);
     };
   }, [reload]);
 
@@ -202,27 +186,31 @@ export default function Gallery() {
   // "Empezar de nuevo": reinicia la revisión de ESTE tipo (fotos o videos, sin
   // tocar el otro) y vuelve a la pantalla de swipe empezando desde el principio.
   const onReset = async () => {
-    await Promise.all([clearCheckpoint(kind), clearGalleryAnchor(kind)]);
+    await clearCheckpoint(kind);
     await useSwipeStore.getState().load(kind);
     if (router.canGoBack()) router.back();
     else router.replace(`/swipe/${kind}`);
   };
 
-  // La barra se mide contra lo que YA está cargado, no contra el total: con
-  // scroll infinito, anclarla al total la dejaba casi inmóvil arriba.
+  // La barra se mide contra el total, igual que el contador de al lado: si se
+  // midiera contra lo cargado, marcaría 85% estando en la foto 899 de 24169.
   const loadedMax = Math.max(1, items.length - 1);
-  const progress = Math.min(1, firstVisible / loadedMax);
+  const totalMax = Math.max(1, total - 1);
+  const progress = Math.min(1, firstVisible / totalMax);
   const seek = (f: number) => {
     if (items.length === 0) return;
-    const target = Math.round(Math.min(1, Math.max(0, f)) * loadedMax);
+    // El objetivo se calcula sobre el total, pero solo podemos saltar a lo que
+    // ya está cargado; al topar, pedimos la siguiente página.
+    const wanted = Math.round(Math.min(1, Math.max(0, f)) * totalMax);
+    const target = Math.min(wanted, loadedMax);
     try {
       listRef.current?.scrollToIndex({ index: target, animated: false });
     } catch {}
-    if (target > loadedMax - 30) loadNext(); // cerca del final -> traer más
+    if (target > loadedMax - 30) loadNext();
   };
 
   return (
-    <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={styles.flex}>
       <View style={styles.header}>
         <CircleIconButton name="arrow-back" onPress={() => router.back()} />
         <Text style={[styles.title, { color: colors.onSurface }]} numberOfLines={1}>

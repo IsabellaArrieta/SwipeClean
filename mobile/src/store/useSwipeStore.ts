@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 import { getTotalCount, queryMediaPage, type Media, type MediaKind } from '@/lib/media';
 import { trashIds, trashInsert, trashRemove } from '@/lib/db';
-import { getCheckpoint, saveCheckpoint } from '@/lib/storage';
+import { bumpActivity, getCheckpoint, saveCheckpoint } from '@/lib/storage';
 
 type Action = { item: Media; kind: 'kept' | 'trashed' };
 
@@ -107,6 +107,7 @@ export const useSwipeStore = create<SwipeState>((set, get) => ({
     if (!item) return;
     const reviewed = get().reviewed + 1;
     saveCheckpoint(item.kind, { id: item.id, time: item.timeMs, count: reviewed });
+    bumpActivity('kept');
     set((s) => ({
       history: [...s.history, { item, kind: 'kept' }],
       index: s.index + 1,
@@ -129,6 +130,7 @@ export const useSwipeStore = create<SwipeState>((set, get) => ({
     });
     const reviewed = get().reviewed + 1;
     saveCheckpoint(item.kind, { id: item.id, time: item.timeMs, count: reviewed });
+    bumpActivity('trashed');
     set((s) => ({
       history: [...s.history, { item, kind: 'trashed' }],
       index: s.index + 1,

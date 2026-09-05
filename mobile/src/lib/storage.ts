@@ -31,25 +31,39 @@ export async function clearCheckpoint(kind: MediaKind): Promise<void> {
   await AsyncStorage.removeItem(key(kind));
 }
 
-// Ancla de la galería: por qué elemento ibas navegando. Guardamos id + fecha
-// para reencontrar su posición exacta aunque hayan entrado fotos nuevas.
-export type Anchor = { id: string; time: number };
-const anchorKey = (kind: MediaKind) => `gallery_anchor_${kind}`;
+// Actividad diaria: cuántos elementos revisaste cada día, para la gráfica de
+// Estadísticas. Se guarda un mapa { 'YYYY-MM-DD': { kept, trashed } } y se
+// podan los días viejos al escribir.
+export type DayActivity = { kept: number; trashed: number };
+export type Activity = Record<string, DayActivity>;
 
-export async function getGalleryAnchor(kind: MediaKind): Promise<Anchor | null> {
-  const raw = await AsyncStorage.getItem(anchorKey(kind));
-  if (!raw) return null;
+const ACTIVITY_KEY = 'activity_v1';
+const KEEP_DAYS = 30;
+
+export function dayKey(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export async function getActivity(): Promise<Activity> {
+  const raw = await AsyncStorage.getItem(ACTIVITY_KEY);
+  if (!raw) return {};
   try {
-    return JSON.parse(raw) as Anchor;
+    return JSON.parse(raw) as Activity;
   } catch {
-    return null;
+    return {};
   }
 }
 
-export async function saveGalleryAnchor(kind: MediaKind, a: Anchor): Promise<void> {
-  await AsyncStorage.setItem(anchorKey(kind), JSON.stringify(a));
-}
+export async function bumpActivity(kind: 'kept' | 'trashed'): Promise<void> {
+  const activity = await getActivity();
+  const today = dayKey();
+  const day = activity[today] ?? { kept: 0, trashed: 0 };
+  activity[today] = { ...day, [kind]: day[kind] + 1 };
 
-export async function clearGalleryAnchor(kind: MediaKind): Promise<void> {
-  await AsyncStorage.removeItem(anchorKey(kind));
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - KEEP_DAYS);
+  const min = dayKey(cutoff);
+  for (const k of Object.keys(activity)) if (k < min) delete activity[k];
+
+  await AsyncStorage.setItem(ACTIVITY_KEY, JSON.stringify(activity));
 }

@@ -42,7 +42,7 @@ export default function Trash() {
     );
 
   return (
-    <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={styles.flex}>
       <View style={styles.header}>
         <CircleIconButton name="arrow-back" onPress={() => router.back()} />
         <Text style={[styles.title, { color: colors.onSurface }]}>Papelera ({items.length})</Text>

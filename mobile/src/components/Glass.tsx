@@ -31,7 +31,8 @@ export function Glass({
       intensity={intensity}
       tint={isDark ? 'dark' : 'light'}
       experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
-      blurReductionFactor={3}
+      // En Android este factor degrada el blur: cuanto más alto, menos se nota.
+      blurReductionFactor={1}
       style={[
         styles.base,
         {

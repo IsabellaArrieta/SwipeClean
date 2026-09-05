@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } fro
 import { Ionicons } from '@expo/vector-icons';
 
 import { useTheme } from '@/theme/ThemeContext';
+import { Glass } from '@/components/Glass';
 import { Semantic, Indigo, radius } from '@/theme/tokens';
 
 export function CircleIconButton({
@@ -16,19 +17,15 @@ export function CircleIconButton({
 }) {
   const { colors } = useTheme();
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={{
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: colors.primary + (disabled ? '0D' : '1A'),
-      }}
-    >
-      <Ionicons name={name} size={20} color={disabled ? colors.primary + '66' : colors.primary} />
+    <Pressable onPress={onPress} disabled={disabled}>
+      <Glass
+        radius={20}
+        intensity={disabled ? 15 : 25}
+        tintColor={colors.primary + (disabled ? '08' : '12')}
+        style={styles.circleBtn}
+      >
+        <Ionicons name={name} size={20} color={disabled ? colors.primary + '66' : colors.primary} />
+      </Glass>
     </Pressable>
   );
 }
@@ -73,28 +70,32 @@ export function PillButton({
 }) {
   const { colors } = useTheme();
   const filled = variant === 'primary' || variant === 'danger';
-  const bg =
-    variant === 'primary' ? colors.primary : variant === 'danger' ? Semantic.danger : 'transparent';
   const fg = filled ? '#fff' : colors.primary;
   const opacity = disabled ? 0.4 : 1;
-
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={[
-        styles.pill,
-        {
-          backgroundColor: bg,
-          borderWidth: filled ? 0 : 1.5,
-          borderColor: colors.primary + '4D',
-          opacity,
-        },
-        style,
-      ]}
-    >
+  const content = (
+    <>
       {icon && <Ionicons name={icon} size={14} color={fg} style={{ marginRight: 6 }} />}
       <Text style={{ color: fg, fontWeight: '700', fontSize: 13 }}>{label}</Text>
+    </>
+  );
+
+  // Velo translúcido: en los rellenos ~55% del color, suficiente para que el
+  // texto blanco se lea pero dejando ver el fondo por detrás.
+  const tint = filled
+    ? (variant === 'primary' ? colors.primary : Semantic.danger) + '8C'
+    : colors.primary + '0F';
+
+  return (
+    <Pressable onPress={onPress} disabled={disabled} style={[{ opacity }, style]}>
+      <Glass
+        radius={radius.md}
+        intensity={filled ? 35 : 22}
+        tintColor={tint}
+        borderColor={filled ? '#ffffff59' : colors.primary + '40'}
+        style={styles.pill}
+      >
+        {content}
+      </Glass>
     </Pressable>
   );
 }
@@ -109,6 +110,7 @@ const styles = StyleSheet.create({
   },
   title: { flex: 1, fontSize: 18, fontWeight: '600' },
   right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  circleBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   pill: {
     height: 40,
     borderRadius: radius.md,

@@ -4,6 +4,7 @@ import Slider from '@react-native-community/slider';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { cachedPoster, getPoster } from '@/lib/videoThumb';
 
@@ -25,6 +26,9 @@ export function VideoCard({ uri }: { uri: string }) {
   const [started, setStarted] = useState(false);
   const [poster, setPoster] = useState<string | null>(() => cachedPoster(uri) ?? null);
   const scrubbing = useRef(false);
+  const startedRef = useRef(false);
+  const videoOpacity = useSharedValue(0);
+  const videoAnimStyle = useAnimatedStyle(() => ({ opacity: videoOpacity.value }));
 
   useEffect(() => {
     const cached = cachedPoster(uri);
@@ -51,6 +55,8 @@ export function VideoCard({ uri }: { uri: string }) {
     setPos(0);
     setDur(0);
     setPlaying(true);
+    startedRef.current = false;
+    videoOpacity.value = 0;
     player.replaceAsync({ uri }).then(
       () => {
         if (!cancelled) player.play();
@@ -66,7 +72,11 @@ export function VideoCard({ uri }: { uri: string }) {
     const id = setInterval(() => {
       try {
         setBuffering(player.status === 'loading');
-        if (player.status === 'readyToPlay' && (player.currentTime || 0) > 0.05) setStarted(true);
+        if (player.status === 'readyToPlay' && (player.currentTime || 0) > 0.05 && !startedRef.current) {
+          startedRef.current = true;
+          setStarted(true);
+          videoOpacity.value = withTiming(1, { duration: 180 });
+        }
         if (scrubbing.current) return;
         setDur(player.duration || 0);
         setPos(player.currentTime || 0);
@@ -100,18 +110,21 @@ export function VideoCard({ uri }: { uri: string }) {
         />
       )}
 
-      {/* Ocultamos el player hasta que el video nuevo arranque: al reutilizar el
-          player su superficie sigue mostrando el último frame del anterior. */}
-      <VideoView
-        player={player}
-        style={[styles.fill, { opacity: started ? 1 : 0 }]}
-        contentFit="contain"
-        nativeControls={false}
-      />
-
-      {!started && poster && (
+      {poster && (
         <Image source={{ uri: poster }} style={styles.poster} contentFit="contain" transition={0} />
       )}
+
+      {/* El player se reutiliza entre videos, así que su superficie sigue
+          mostrando el último frame del anterior: en vez de un corte duro,
+          hacemos un crossfade sobre el poster para disimular ese frame. */}
+      <Animated.View style={[styles.fill, videoAnimStyle]}>
+        <VideoView
+          player={player}
+          style={styles.fill}
+          contentFit="contain"
+          nativeControls={false}
+        />
+      </Animated.View>
 
       {buffering && !started ? (
         <View style={styles.playBtn}>

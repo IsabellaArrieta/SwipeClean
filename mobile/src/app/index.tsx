@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,18 +9,39 @@ import { useTheme } from '@/theme/ThemeContext';
 import { Indigo, Semantic, radius } from '@/theme/tokens';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Glass } from '@/components/Glass';
+import { getCheckpoint } from '@/lib/storage';
+import { getTotalCount } from '@/lib/media';
 import { useTrashStore } from '@/store/useTrashStore';
 
+// Sin Intl: en Hermes no siempre está disponible el formato por locale.
+const miles = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
 export default function Home() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const router = useRouter();
   const items = useTrashStore((s) => s.items);
   const refresh = useTrashStore((s) => s.refresh);
+  const [pending, setPending] = useState<{ photo: number; video: number } | null>(null);
 
-  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+      Promise.all([
+        getTotalCount('photo'),
+        getTotalCount('video'),
+        getCheckpoint('photo'),
+        getCheckpoint('video'),
+      ]).then(([tp, tv, cp, cv]) =>
+        setPending({
+          photo: Math.max(0, tp - (cp?.count ?? 0)),
+          video: Math.max(0, tv - (cv?.count ?? 0)),
+        }),
+      );
+    }, [refresh]),
+  );
 
   return (
-    <LinearGradient colors={[colors.background, colors.backgroundEnd]} style={styles.flex}>
+    <View style={styles.flex}>
       <SafeAreaView style={styles.flex}>
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.topRow}>
@@ -33,12 +54,22 @@ export default function Home() {
             <ThemeToggle />
           </View>
 
-          <View style={[styles.banner, { borderColor: Semantic.amber + '33' }]}>
-            <Ionicons name="time-outline" size={18} color={Semantic.amber} />
+          <Glass
+            style={styles.banner}
+            radius={radius.lg}
+            intensity={10}
+            tintColor={Semantic.amber + '1A'}
+            borderColor={Semantic.amber + '59'}
+          >
+            <Ionicons name="hourglass-outline" size={18} color={Semantic.amber} />
             <Text style={[styles.bannerText, { color: colors.onSurface }]}>
-              Cálculo de espacio: función próximamente
+              {!pending
+                ? 'Contando lo que falta por revisar…'
+                : pending.photo + pending.video === 0
+                  ? '¡Galería al día! No te queda nada por revisar'
+                  : `Te faltan ${miles(pending.photo)} fotos y ${miles(pending.video)} videos por revisar`}
             </Text>
-          </View>
+          </Glass>
 
           <OptionCard
             icon="image-outline"
@@ -66,13 +97,18 @@ export default function Home() {
           />
         </ScrollView>
 
-        <Glass style={styles.tabBar} radius={30} intensity={75}>
+        <Glass
+          style={styles.tabBar}
+          radius={30}
+          intensity={16}
+          tintColor={isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.06)'}
+        >
           <Tab icon="home" label="Inicio" active />
           <Tab icon="bar-chart" label="Estadísticas" onPress={() => router.push('/stats')} />
           <Tab icon="heart" label="Info" onPress={() => router.push('/info')} />
         </Glass>
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -91,27 +127,29 @@ function OptionCard({
   footer: string;
   onPress: () => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.card,
-        { backgroundColor: colors.surface, borderColor: colors.border, transform: [{ scale: pressed ? 0.97 : 1 }] },
-      ]}
-    >
-      <LinearGradient colors={grad} style={styles.cardIcon}>
-        <Ionicons name={icon} size={24} color="#fff" />
-      </LinearGradient>
-      <Text style={[styles.cardTitle, { color: colors.onSurface }]}>{title}</Text>
-      <Text style={[styles.cardSub, { color: colors.onSurfaceVariant }]}>{subtitle}</Text>
-      <View style={[styles.divider, { backgroundColor: colors.onSurface + '14' }]} />
-      <View style={styles.cardFooter}>
-        <Text style={[styles.cardFooterText, { color: colors.onSurfaceVariant }]}>{footer}</Text>
-        <LinearGradient colors={[Indigo[600], Indigo[400]]} style={styles.cardArrow}>
-          <Ionicons name="arrow-forward" size={16} color="#fff" />
+    <Pressable onPress={onPress} style={({ pressed }) => [{ transform: [{ scale: pressed ? 0.97 : 1 }] }]}>
+      <Glass
+        style={styles.card}
+        radius={radius.xl}
+        intensity={10}
+        tintColor={isDark ? 'rgba(255,255,255,0.015)' : 'rgba(255,255,255,0.03)'}
+        borderColor={isDark ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.9)'}
+      >
+        <LinearGradient colors={grad} style={styles.cardIcon}>
+          <Ionicons name={icon} size={24} color="#fff" />
         </LinearGradient>
-      </View>
+        <Text style={[styles.cardTitle, { color: colors.onSurface }]}>{title}</Text>
+        <Text style={[styles.cardSub, { color: colors.onSurfaceVariant }]}>{subtitle}</Text>
+        <View style={[styles.divider, { backgroundColor: colors.onSurface + '14' }]} />
+        <View style={styles.cardFooter}>
+          <Text style={[styles.cardFooterText, { color: colors.onSurfaceVariant }]}>{footer}</Text>
+          <LinearGradient colors={[Indigo[600], Indigo[400]]} style={styles.cardArrow}>
+            <Ionicons name="arrow-forward" size={16} color="#fff" />
+          </LinearGradient>
+        </View>
+      </Glass>
     </Pressable>
   );
 }
@@ -147,14 +185,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: 'rgba(245,158,11,0.1)',
-    borderWidth: 1,
-    borderRadius: radius.lg,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
   bannerText: { fontSize: 14, flex: 1 },
-  card: { borderRadius: radius.xl, borderWidth: 1, padding: 18, gap: 6 },
+  card: { padding: 18, gap: 6 },
   cardIcon: {
     width: 52,
     height: 52,
