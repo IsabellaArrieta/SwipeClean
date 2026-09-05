@@ -4,10 +4,16 @@ import { BlurView } from 'expo-blur';
 
 import { useTheme } from '@/theme/ThemeContext';
 
-// Superficie de cristal: desenfoque real del fondo + un velo de color encima y
-// un borde claro que simula el brillo del vidrio.
-// En Android hay que pedir `dimezisBlurView` explícitamente; por defecto
-// expo-blur no desenfoca, solo pone un translúcido.
+// Superficie de cristal: un velo translúcido con borde claro, opcionalmente
+// sobre un desenfoque real del fondo.
+//
+// Sobre `blur` en Android: el desenfoque real de expo-blur (`dimezisBlurView`)
+// está marcado como experimental y redibuja el árbol de vistas dentro de su
+// propio bitmap, así que además de devolver un lavado plano —en vez de dejar
+// reconocer lo que hay detrás— arrastra el contenido que va encima y lo deja
+// borroso. Para superficies con texto conviene `blur={false}`: queda
+// translúcida de verdad y las letras nítidas. En iOS el desenfoque es nativo
+// y no tiene ese problema.
 export function Glass({
   children,
   style,
@@ -15,6 +21,7 @@ export function Glass({
   intensity = 60,
   tintColor,
   borderColor,
+  blur = true,
 }: {
   children?: ReactNode;
   style?: StyleProp<ViewStyle>;
@@ -23,16 +30,13 @@ export function Glass({
   /** velo de color sobre el desenfoque (usa rgba) */
   tintColor?: string;
   borderColor?: string;
+  /** desenfoque real del fondo; ver nota de arriba antes de activarlo con texto */
+  blur?: boolean;
 }) {
   const { isDark } = useTheme();
 
   return (
-    <BlurView
-      intensity={intensity}
-      tint={isDark ? 'dark' : 'light'}
-      experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
-      // En Android este factor degrada el blur: cuanto más alto, menos se nota.
-      blurReductionFactor={1}
+    <View
       style={[
         styles.base,
         {
@@ -42,9 +46,17 @@ export function Glass({
         style,
       ]}
     >
+      <BlurView
+        intensity={intensity}
+        tint={isDark ? 'dark' : 'light'}
+        experimentalBlurMethod={blur && Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+        blurReductionFactor={1}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
       {tintColor && <View style={[styles.veil, { backgroundColor: tintColor }]} pointerEvents="none" />}
       {children}
-    </BlurView>
+    </View>
   );
 }
 

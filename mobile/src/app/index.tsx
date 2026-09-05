@@ -133,8 +133,9 @@ function OptionCard({
       <Glass
         style={styles.card}
         radius={radius.xl}
-        intensity={10}
-        tintColor={isDark ? 'rgba(255,255,255,0.015)' : 'rgba(255,255,255,0.03)'}
+        intensity={0}
+        blur={false}
+        tintColor={isDark ? 'rgba(30,41,59,0.34)' : 'rgba(255,255,255,0.34)'}
         borderColor={isDark ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.9)'}
       >
         <LinearGradient colors={grad} style={styles.cardIcon}>
